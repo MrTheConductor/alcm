@@ -1,0 +1,9 @@
+# Ignore project and build directoires
+Project
+Testing
+build
+**.orig
+
+# Except
+!ALCM.uvoptx
+!ALCM.uvprojx

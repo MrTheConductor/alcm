@@ -1,0 +1,27 @@
+{
+    "cmake.sourceDirectory": "C:/Users/nothi/Projects/PintV LCM/LCM CODE 15S/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project",
+    "files.associations": {
+        "status_leds_hw.h": "c",
+        "settings.h": "c",
+        "command_processor.h": "c",
+        "event_queue.h": "c",
+        "status_leds.h": "c",
+        "ring_buffer.h": "c",
+        "board_mode.h": "c",
+        "atomic": "c",
+        "compare": "c",
+        "cstddef": "c",
+        "functional": "c",
+        "limits": "c",
+        "memory": "c",
+        "type_traits": "c",
+        "vector": "c",
+        "xhash": "c",
+        "xmemory": "c",
+        "xstring": "c",
+        "xutility": "c",
+        "stdint.h": "c",
+        "stddef.h": "c",
+        "footpads.h": "c"
+    }
+}

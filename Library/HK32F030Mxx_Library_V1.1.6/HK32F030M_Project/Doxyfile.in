@@ -1,0 +1,5 @@
+PROJECT_NAME           = "@PROJECT_NAME@"
+OUTPUT_DIRECTORY       = "@DOXYGEN_OUTPUT_DIR@"
+INPUT                  = "@DOXYGEN_INPUT_DIR@"
+RECURSIVE              = YES
+GENERATE_LATEX         = NO

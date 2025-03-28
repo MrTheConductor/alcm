@@ -1,0 +1,46 @@
+{
+    "configurations": [
+        {
+            "name": "SafeLCM MSVC",
+            "includePath": [
+                "${default}",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M/CMSIS/HK32F030M/Include",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M/CMSIS/CM0/Core",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M/HK32F030M_Lib/inc",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project/inc",
+                "${workspaceFolder}/build/_deps/cmocka-src/include",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project/tests/mocks",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project/tests/include-internal"
+            ],
+            "defines": [
+                "HK32F030M",
+                "HK32F030MF4P6"
+            ],
+            "intelliSenseMode": "windows-msvc-x64",
+            "compilerPath": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\MSVC\\14.41.34120\\bin\\Hostx64\\x64\\cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17"
+        },
+        {
+            "name": "SafeLCM LLVM",
+            "includePath": [
+                "${default}",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M/CMSIS/HK32F030M/Include",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M/CMSIS/CM0/Core",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M/HK32F030M_Lib/inc",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project/inc",
+                "${workspaceFolder}/build/_deps/cmocka-src/include",
+                "${workspaceFolder}/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project/tests/mocks"
+            ],
+            "defines": [
+                "HK32F030M",
+                "HK32F030MF4P6"
+            ],
+            "intelliSenseMode": "clang-x64",
+            "compilerPath": "C:\\Program Files\\LLVM\\bin\\clang.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}
