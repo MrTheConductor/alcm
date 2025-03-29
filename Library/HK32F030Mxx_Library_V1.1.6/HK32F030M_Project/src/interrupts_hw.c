@@ -19,6 +19,30 @@
 #include "interrupts.h"
 #include "hk32f030m.h"
 
+volatile static uint8_t inhibit_disable_count = 0;
+
+/**
+ * @brief Inhibit disabling interrupts.
+ */
+void interrupts_inhibit_disable(void)
+{
+    if (inhibit_disable_count < 255)
+    {
+        inhibit_disable_count++;
+    }
+}
+
+/**
+ * @brief Uninhibit disabling interrupts.
+ */
+void interrupts_uninhibit_disable(void)
+{
+    if (inhibit_disable_count > 0)
+    {
+        inhibit_disable_count--;
+    }
+}
+
 /**
  * @brief Enables interrupts
  */
@@ -32,6 +56,14 @@ void interrupts_enable(void)
  */
 void interrupts_disable(void)
 {
+    uint32_t timeout = 1000000; // Timeout for busy wait
+
+    while ((inhibit_disable_count > 0) &&
+           (timeout > 0))
+    {
+        // Busy wait until the inhibit_disable_count is zero
+        timeout--;
+    }
     __set_PRIMASK(1);
 }
 

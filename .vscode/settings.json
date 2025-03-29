@@ -1,5 +1,5 @@
 {
-    "cmake.sourceDirectory": "C:/Users/nothi/Projects/PintV LCM/LCM CODE 15S/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project",
+    "cmake.sourceDirectory": "C:/Users/nothi/Projects/PintV LCM/alcm/Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project",
     "files.associations": {
         "status_leds_hw.h": "c",
         "settings.h": "c",

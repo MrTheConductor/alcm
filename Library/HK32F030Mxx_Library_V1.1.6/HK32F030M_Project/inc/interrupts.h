@@ -20,6 +20,16 @@
 #define INTERRUPTS_H
 
 /**
+ * @brief Inhibit disabling interrupts.
+ */
+void interrupts_inhibit_disable(void);
+
+/**
+ * @brief Uninhibit disabling interrupts.
+ */
+void interrupts_uninhibit_disable(void);
+
+/**
  * @brief Enable interrupts
  */
 void interrupts_enable(void);

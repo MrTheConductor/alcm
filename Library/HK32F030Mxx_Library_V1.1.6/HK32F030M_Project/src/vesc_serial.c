@@ -24,6 +24,7 @@
 #include "timer.h"
 #include "crc16_ccitt.h"
 #include "lcm_types.h"
+#include "interrupts.h"
 
 // Values from VESC datatypes.h
 #define COMM_GET_VALUES_SETUP_SELECTIVE 51
@@ -58,7 +59,7 @@ static volatile uint8_t vesc_serial_rx_buffer_data[VESC_SERIAL_RX_BUFFER_SIZE] =
 static timer_id_t vesc_serial_tx_timerid = INVALID_TIMER_ID;
 static comm_get_values_setup_selective_t comm_get_values_setup_selective = {0};
 static bool_t vesc_alive = false;
-static volatile uint8_t vesc_serial_outstaning_packet_count = 0;
+static uint8_t vesc_serial_outstaning_packet_count = 0;
 
 // Forward declarations
 EVENT_HANDLER(vesc_serial, rx);
@@ -447,15 +448,25 @@ TIMER_CALLBACK(vesc_serial, tx)
      * byte 9: end byte (0x03)
      */
     uint8_t buffer[10] = {0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03};
-    vesc_serial_hw_send(buffer, 10);
 
-    // If we don't get a response in a reasonable amount of time,
-    // raise an emergency fault
-    if (vesc_serial_outstaning_packet_count++ > MAX_OUTSTANDING_PACKETS && vesc_alive)
+    if (vesc_alive == true)
     {
-        // VESC is not responding, raise an emergency fault
-        fault(EMERGENCY_FAULT_VESC);
+        if (vesc_serial_outstaning_packet_count >= MAX_OUTSTANDING_PACKETS)
+        {
+            // Too many outstanding packets, trigger a fault
+            fault(EMERGENCY_FAULT_VESC);
+            vesc_alive = false; // VESC comms are dead
+        }
+        else
+        {
+            // Inhibit disabling interrupts to ensure that we receive the
+            // response from the VESC.
+            interrupts_inhibit_disable();
+        }
     }
+
+    vesc_serial_outstaning_packet_count++;
+    vesc_serial_hw_send(buffer, 10);
 }
 
 /**

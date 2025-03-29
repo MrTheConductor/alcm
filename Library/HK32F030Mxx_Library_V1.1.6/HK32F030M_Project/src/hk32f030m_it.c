@@ -19,6 +19,7 @@
 #include "event_queue.h"
 #include "timer.h"
 #include "vesc_serial.h"
+#include "interrupts.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -150,8 +151,7 @@ void EXTI3_IRQHandler(void)
     }
 }
 
-ring_buffer_t *usart_rx_buffer = NULL;
-
+static ring_buffer_t *usart_rx_buffer = NULL;
 /**
  * @brief USART1 Interrupt Request Handler
  *
@@ -191,6 +191,7 @@ void USART1_IRQHandler(void)
     if (USART1->ISR & USART_ISR_IDLE)
     {
         USART1->ICR = USART_ICR_IDLECF; // Clear IDLE flag
+        interrupts_uninhibit_disable(); // Allow disabling interrupts again
         event_queue_push(EVENT_SERIAL_DATA_RX, NULL);
     }
 
