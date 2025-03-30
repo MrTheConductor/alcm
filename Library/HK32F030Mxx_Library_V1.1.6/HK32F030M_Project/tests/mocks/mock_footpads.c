@@ -29,6 +29,7 @@
 
 lcm_status_t footpads_init() {
     function_called();
+    return (lcm_status_t)mock();
 }
 
 footpads_state_t footpads_get_state() {

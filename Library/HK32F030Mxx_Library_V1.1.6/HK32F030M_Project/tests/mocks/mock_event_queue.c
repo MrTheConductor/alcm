@@ -25,7 +25,7 @@
 
 #include "mock_event_queue.h"
 
-lcm_status_t event_queue_push(event_type_t event, event_data_t* data)
+lcm_status_t event_queue_push(event_type_t event, const event_data_t* data)
 {
     check_expected(event);
     check_expected_ptr(data);

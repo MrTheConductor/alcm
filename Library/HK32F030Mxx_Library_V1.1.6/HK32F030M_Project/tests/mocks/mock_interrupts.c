@@ -23,6 +23,16 @@
 
 #include "interrupts.h"
 
+void interrupts_inhibit_disable(void)
+{
+    function_called();
+}
+
+void interrupts_uninhibit_disable(void)
+{
+    function_called();
+}
+
 /**
  * @brief Enable interrupts
  */

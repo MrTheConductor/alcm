@@ -53,7 +53,7 @@ void headlights_hw_set_direction(headlights_direction_t direction)
 
 headlights_direction_t headlights_hw_get_direction(void)
 {
-    mock();
+    return (headlights_direction_t)mock();
 }
 
 /**
@@ -67,5 +67,5 @@ void headlights_hw_set_brightness(uint16_t brightness)
 
 uint16_t headlights_hw_get_brightness(void)
 {
-    mock();
+    return (uint16_t)mock();
 }

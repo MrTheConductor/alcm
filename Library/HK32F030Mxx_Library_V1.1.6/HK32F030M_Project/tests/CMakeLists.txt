@@ -87,6 +87,7 @@ add_executable(test_alcm
     mocks/mock_event_queue.c
     mocks/mock_footpads_hw.c
     mocks/mock_headlights_hw.c
+    mocks/mock_interrupts.c
     mocks/mock_power_hw.c
     mocks/mock_status_leds_hw.c
     mocks/mock_timer.c
