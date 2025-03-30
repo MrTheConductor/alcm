@@ -3,11 +3,11 @@ include(FetchContent)
 FetchContent_Declare(
     cmocka
     GIT_REPOSITORY https://git.cryptomilk.org/projects/cmocka.git
-    GIT_TAG cmocka-1.1.5
+    GIT_TAG cmocka-1.1.7
 )
-set(CMOCKA_BUILD_EXAMPLES OFF CACHE BOOL "Don't build CMocka examples")
-set(CMOCKA_BUILD_TESTS OFF CACHE BOOL "Don't build CMocka tests")
+set(WITH_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)  # Disable examples to avoid building them
 FetchContent_MakeAvailable(cmocka)
+
 
 # Add test executable for status LEDs 
 add_executable(test_status_leds
