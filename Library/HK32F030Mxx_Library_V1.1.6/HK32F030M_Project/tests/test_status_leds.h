@@ -283,6 +283,23 @@ void expect_fill_animation(void)
     expect_function_call(fill_animation_setup);
 }
 
+void expect_scan_animation(void)
+{
+    expect_any(scan_animation_setup, buffer);
+    expect_any(scan_animation_setup, direction);
+    expect_any(scan_animation_setup, color_mode);
+    expect_any(scan_animation_setup, movement_speed);
+    expect_any(scan_animation_setup, sigma);
+    expect_any(scan_animation_setup, hue_min);
+    expect_any(scan_animation_setup, hue_max);
+    expect_any(scan_animation_setup, color_speed);
+    expect_any(scan_animation_setup, scan_start);
+    expect_any(scan_animation_setup, scan_end);
+    expect_any(scan_animation_setup, init_mu);
+    expect_any(scan_animation_setup, rgb);
+    expect_function_call(scan_animation_setup);
+}
+
 static void test_status_leds_fault(void **state)
 {
     event_data_t data = {0};
@@ -351,7 +368,7 @@ static void test_status_leds_toggle(void **state)
 
     // Expect stop animation
     expect_function_call(stop_animation);
-    expect_any(status_leds_hw_refresh, buffer);
+    expect_scan_animation();
 
     event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_LIGHTS, &data);
 }

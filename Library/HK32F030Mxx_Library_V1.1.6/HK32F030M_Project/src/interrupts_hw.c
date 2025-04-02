@@ -58,8 +58,7 @@ void interrupts_disable(void)
 {
     uint32_t timeout = 1000000; // Timeout for busy wait
 
-    while ((inhibit_disable_count > 0) &&
-           (timeout > 0))
+    while ((inhibit_disable_count > 0) && (timeout > 0))
     {
         // Busy wait until the inhibit_disable_count is zero
         timeout--;

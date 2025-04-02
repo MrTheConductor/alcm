@@ -45,6 +45,25 @@ typedef enum
 } scan_direction_t;
 
 /**
+ * @brief Options for terminating the scan animation.
+ */
+typedef enum
+{
+    SCAN_END_NEVER,         // Never stop: run continuously
+    SCAN_END_SINGLE_TICK,   // Terminate after a single tick
+    SCAN_END_MAX_MU         // Terminate at max mu
+} scan_end_t;
+
+/**
+ * @brief Options for starting mu postion.
+ */
+typedef enum
+{
+    SCAN_START_DEFAULT,     // Default: start at edge of LED array
+    SCAN_START_MU           // Start at arbitrary mu value
+} scan_start_t;
+
+/**
  * @brief Enumeration for different fill modes.
  */
 typedef enum
@@ -100,7 +119,8 @@ typedef void (*animation_callback_t)(void);
  */
 void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
                           color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
-                          float hue_max, float color_speed, const status_leds_color_t *rgb);
+                          float hue_max, float color_speed, scan_start_t scan_start,
+                          scan_end_t scan_end, float init_mu, const status_leds_color_t *rgb);
 
 /**
  * @brief Set up a fill animation.
