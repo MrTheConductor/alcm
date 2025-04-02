@@ -139,16 +139,18 @@ void status_leds_start_animation_option(animation_option_t option)
                              0.0f,    // hue min
                              360.0f,  // hue max
                              3000.0f, // color change speed
-                             NULL     // RGB color (ignored)
+                             SCAN_START_DEFAULT, SCAN_END_NEVER, 0.0f,
+                             NULL // RGB color (ignored)
         );
         break;
     case ANIMATION_OPTION_KNIGHT_RIDER:
         scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_SINE, COLOR_MODE_RGB,
                              2000.0f, // scan speed in milliseconds
                              SIGMA_DEFAULT,
-                             0.0f,       // (not-used)
-                             0.0f,       // (not-used)
-                             0.0f,       // (not-used)
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             SCAN_START_DEFAULT, SCAN_END_NEVER, 0.0f,
                              &colors.red // RGB color
         );
         break;
@@ -172,7 +174,7 @@ void status_leds_start_animation_option(animation_option_t option)
             SIGMA_DEFAULT,
             status_leds_settings->personal_color,                              // hue min
             CLAMP(status_leds_settings->personal_color + 15.0f, 0.0f, 360.0f), // hue max
-            3000.0f, NULL);
+            3000.0f, SCAN_START_DEFAULT, SCAN_END_NEVER, 0.0f, NULL);
         break;
     case ANIMATION_OPTION_THE_FUZZ:
         fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_SQUARE, BRIGHTNESS_MODE_SEQUENCE,
@@ -208,7 +210,7 @@ void status_leds_start_animation_option(animation_option_t option)
             SIGMA_DEFAULT,
             status_leds_settings->personal_color,                              // hue min
             CLAMP(status_leds_settings->personal_color + 15.0f, 0.0f, 360.0f), // hue max
-            3000.0f, NULL);
+            3000.0f, SCAN_START_DEFAULT, SCAN_END_NEVER, 0.0f, NULL);
         break;
     case ANIMATION_OPTION_RAINBOW_BAR:
         fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_INCREASE, BRIGHTNESS_MODE_STATIC,
@@ -242,9 +244,10 @@ void status_leds_start_animation_option(animation_option_t option)
         scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_SINE, COLOR_MODE_RGB,
                              2000.0f, // scan speed in milliseconds
                              SIGMA_DEFAULT,
-                             0.0f,         // (not-used)
-                             0.0f,         // (not-used)
-                             0.0f,         // (not-used)
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             SCAN_START_DEFAULT, SCAN_END_NEVER, 0.0f,
                              &custom_color // RGB color
         );
         break;
@@ -255,9 +258,10 @@ void status_leds_start_animation_option(animation_option_t option)
         scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_FILL, COLOR_MODE_RGB,
                              5500.0f, // scan speed in milliseconds
                              SIGMA_DEFAULT,
-                             0.0f,         // (not-used)
-                             0.0f,         // (not-used)
-                             0.0f,         // (not-used)
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             SCAN_START_DEFAULT, SCAN_END_MAX_MU, 0.0f,
                              &custom_color // RGB color
         );
         break;
@@ -309,43 +313,24 @@ void display_battery(float32_t battery_level)
     }
     else
     {
-        const status_leds_color_t *color = NULL;
-
-        // Stop any current animation
+        const status_leds_color_t *color = &colors.white;
         stop_animation();
 
-        // Clear the current display
-        if (LCM_SUCCESS != status_leds_set_color(&colors.black, 0U, STATUS_LEDS_COUNT - 1U))
-        {
-            fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-        }
-
-        // Display the battery level
-        uint8_t max_led = (uint8_t)(battery_level / 10.0f);
-        if (max_led > STATUS_LEDS_COUNT - 1U)
-        {
-            max_led = STATUS_LEDS_COUNT - 1U;
-        }
-
-        if (max_led == 0) // one LED for 10%
-        {
-            color = &colors.red;
-        }
-        else if (max_led == 1) // two LEDs for 20%
+        if (battery_level <= LOW_BATTERY_THRESHOLD)
         {
             color = &colors.orange;
         }
-        else
-        {
-            color = &colors.white;
-        }
 
-        if (LCM_SUCCESS != status_leds_set_color(color, 0U, max_led))
-        {
-            fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-        }
-
-        status_leds_refresh();
+        scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_FILL, COLOR_MODE_RGB,
+                             500.0f, // scan speed in milliseconds
+                             SIGMA_DEFAULT,
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             0.0f, // (not-used)
+                             SCAN_START_MU, SCAN_END_SINGLE_TICK,
+                             (float32_t)((battery_level / 10.0f) - 1.0f),
+                             color // RGB color
+        );
         idle_display_state = IDLE_DISPLAY_BATTERY;
     }
 }

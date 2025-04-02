@@ -604,7 +604,8 @@ void scan_animation_tick(uint32_t tick)
     // Update animation parameters
     if (LCM_SUCCESS != function_generator_next_sample(&animation_config.scan.fg, &mu))
     {
-        fault(EMERGENCY_FAULT_INVALID_ARGUMENT);
+        // No more samples, disable animation
+        stop_animation();
     }
     next_color(&color, &animation_config.scan.color);
 
@@ -769,34 +770,24 @@ void fire_animation_tick(uint32_t tick)
 
 /**
  * @brief Initializes the scan animation with the specified parameters.
- *
- * This function sets up the scan animation with the specified parameters
- * and starts the animation timer. If the current animation is not
- * ANIMATION_SCAN, it stops the current animation before initializing the
- * scan animation.
- *
- * @param buffer Pointer to the LED buffer to modify.
- * @param direction The direction of the scan animation (left to right or sine
- * wave).
- * @param color_mode The mode of the color animation (HSV increase, HSV sine
- * wave, or RGB).
- * @param movement_speed The speed of the scan animation in pixels per
- * ANIMATION_DELAY.
- * @param sigma The standard deviation of the gaussian distribution.
- * @param hue_min The minimum hue value in degrees.
- * @param hue_max The maximum hue value in degrees.
- * @param color_speed The speed of the color animation in degrees per
- * ANIMATION_DELAY.
- * @param rgb Pointer to a status_leds_color_t struct containing the RGB values
- * for the color animation (used for RGB mode only).
  */
 void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
                           color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
-                          float hue_max, float color_speed, const status_leds_color_t *rgb)
+                          float hue_max, float color_speed, scan_start_t scan_start,
+                          scan_end_t scan_end, float init_mu, const status_leds_color_t *rgb)
 {
     float mu_falloff = calculate_mu_falloff(sigma, 0.01f);
-    float mu_start = -mu_falloff;
+    float mu_start = 0.0f;
     float mu_end = STATUS_LEDS_COUNT - 1 + mu_falloff;
+
+    if (scan_start == SCAN_START_DEFAULT)
+    {
+        mu_start = -mu_falloff;
+    }
+    else
+    {
+        mu_start = init_mu;
+    }
 
     // Copy the animation configuration
     animation_config.scan.buffer = buffer;
@@ -812,8 +803,8 @@ void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t directio
         // fallthrough intentional
     case SCAN_DIRECTION_LEFT_TO_RIGHT:
         function_generator_init(&(animation_config.scan.fg), FUNCTION_GENERATOR_SAWTOOTH,
-                                movement_speed, ANIMATION_DELAY, mu_start, mu_end, FG_FLAG_REPEAT,
-                                0);
+                                movement_speed, ANIMATION_DELAY, mu_start, mu_end,
+                                scan_end == SCAN_END_NEVER ? FG_FLAG_REPEAT : FG_FLAG_NONE, 0);
         break;
     case SCAN_DIRECTION_RIGHT_TO_LEFT_MIRROR:
         mu_end = (STATUS_LEDS_COUNT / 2) - 1 + mu_falloff;
@@ -821,14 +812,15 @@ void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t directio
     case SCAN_DIRECTION_RIGHT_TO_LEFT_FILL:
         // fallthrough intentional
     case SCAN_DIRECTION_RIGHT_TO_LEFT:
-        function_generator_init(&(animation_config.scan.fg), FUNCTION_GENERATOR_SAWTOOTH,
-                                movement_speed, ANIMATION_DELAY, mu_start, mu_end,
-                                FG_FLAG_INVERT | FG_FLAG_REPEAT, 0);
+        function_generator_init(
+            &(animation_config.scan.fg), FUNCTION_GENERATOR_SAWTOOTH, movement_speed,
+            ANIMATION_DELAY, mu_start, mu_end,
+            scan_end == SCAN_END_NEVER ? FG_FLAG_REPEAT | FG_FLAG_INVERT : FG_FLAG_INVERT, 0);
         break;
     case SCAN_DIRECTION_SINE:
         function_generator_init(&(animation_config.scan.fg), FUNCTION_GENERATOR_SINE,
                                 movement_speed, ANIMATION_DELAY, 0, STATUS_LEDS_COUNT - 1,
-                                FG_FLAG_REPEAT, 0);
+                                scan_end == SCAN_END_NEVER ? FG_FLAG_REPEAT : FG_FLAG_NONE, 0);
         break;
     default:
         fault(EMERGENCY_FAULT_INVALID_ARGUMENT);
@@ -838,8 +830,16 @@ void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t directio
     // Initialize the color animation
     color_init(&animation_config.scan.color, color_mode, hue_min, hue_max, color_speed, rgb);
 
-    // Set the current animation and start the timer
-    animation_start(scan_animation_tick);
+    // If single tick, just run tick handler without starting timer
+    if (scan_end == SCAN_END_SINGLE_TICK)
+    {
+        scan_animation_tick(0);
+    }
+    else
+    {
+        // Start animation timer
+        animation_start(scan_animation_tick);
+    }
 }
 
 /**

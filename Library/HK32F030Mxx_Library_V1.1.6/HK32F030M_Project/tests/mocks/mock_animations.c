@@ -21,10 +21,14 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include "mock_animations.h"
-
 void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
-                          color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
-                          float hue_max, float color_speed, const status_leds_color_t *rgb) {
+    color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
+    float hue_max, float color_speed,
+    scan_start_t scan_start,
+    scan_end_t scan_end,
+    float init_mu,
+    const status_leds_color_t *rgb)
+{
     check_expected(buffer);
     check_expected(direction);
     check_expected(color_mode);
@@ -33,6 +37,9 @@ void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t directio
     check_expected(hue_min);
     check_expected(hue_max);
     check_expected(color_speed);
+    check_expected(scan_start);
+    check_expected(scan_end);
+    check_expected(init_mu);
     check_expected_ptr(rgb);
     function_called();
 }

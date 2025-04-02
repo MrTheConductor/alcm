@@ -54,7 +54,7 @@
 
 // Status LEDs configuration
 #define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down
-#define LOW_BATTERY_THRESHOLD (20.0f)
-#define CRITICAL_BATTERY_THRESHOLD (5.0f)
+#define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
+#define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
 
 #endif
