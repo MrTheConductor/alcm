@@ -171,6 +171,12 @@ static ring_buffer_t *usart_rx_buffer = NULL;
  * When ORE is triggered, the overrun error flag is cleared and the error can
  * be handled by the user.
  */
+#undef UART_DEBUG
+#ifdef UART_DEBUG
+static uint16_t rxne_count = 0;
+static uint16_t idle_count = 0;
+static uint16_t ore_count = 0;
+#endif
 void USART1_IRQHandler(void)
 {
     // Get the RX buffer if first time through
@@ -182,6 +188,9 @@ void USART1_IRQHandler(void)
     if (USART1->ISR & USART_ISR_RXNE)
     {
         uint8_t data = USART1->RDR; // Read data clears RXNE flag
+#ifdef UART_DEBUG
+        rxne_count++;
+#endif
         if (!ring_buffer_push(usart_rx_buffer, data))
         {
             // Buffer overflow: handle error, e.g., set an error flag
@@ -190,6 +199,9 @@ void USART1_IRQHandler(void)
 
     if (USART1->ISR & USART_ISR_IDLE)
     {
+#ifdef UART_DEBUG
+        idle_count++;
+#endif
         USART1->ICR = USART_ICR_IDLECF; // Clear IDLE flag
         interrupts_uninhibit_disable(); // Allow disabling interrupts again
         event_queue_push(EVENT_SERIAL_DATA_RX, NULL);
@@ -199,7 +211,9 @@ void USART1_IRQHandler(void)
     {
         volatile uint8_t dummy = USART1->RDR; // Clear ORE flag by reading RDR
         USART1->ICR = USART_ICR_ORECF;        // Clear ORE flag
-        // Handle overrun error if necessary
+#ifdef UART_DEBUG
+        ore_count++;
+#endif
     }
 }
 

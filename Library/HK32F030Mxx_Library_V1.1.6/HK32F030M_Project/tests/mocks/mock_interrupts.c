@@ -44,7 +44,8 @@ void interrupts_enable(void)
 /**
  * @brief Disable interrupts
  */
-void interrupts_disable(void)
+void interrupts_disable(interrupt_yield_t yield)
 {
+    check_expected(yield);
     function_called();
 }

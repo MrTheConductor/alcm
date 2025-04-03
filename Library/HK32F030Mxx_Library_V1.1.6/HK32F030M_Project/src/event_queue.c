@@ -65,15 +65,6 @@ lcm_status_t event_queue_init(void)
 }
 
 /**
- * @brief Checks if the event queue is full.
- */
-bool_t is_queue_full(void)
-{
-    uint8_t next_tail = (event_queue_tail + 1U) % EVENT_QUEUE_SIZE; // Calculate next tail position
-    return (next_tail == event_queue_head);                         // Compare with the head
-}
-
-/**
  * @brief Checks if the event queue is empty.
  */
 bool_t is_queue_empty(void)
@@ -83,20 +74,44 @@ bool_t is_queue_empty(void)
     return (head == tail);           // Compare the stable values
 }
 
+lcm_status_t get_free_index(uint8_t *index)
+{
+    lcm_status_t status = LCM_ERROR;
+
+    if (index != NULL)
+    {
+        // This section must be atomic and cannot wait becuase it may
+        // be executed by an ISR
+        interrupts_disable(INTERRUPT_YIELD_FORCE);
+        uint8_t next_tail =
+            (event_queue_tail + 1U) % EVENT_QUEUE_SIZE; // Calculate next tail position
+
+        // if the queue is not full, return the current tail as the next available index
+        if (next_tail != event_queue_head)
+        {
+            *index = event_queue_tail;
+            event_queue_tail = next_tail;
+            status = LCM_SUCCESS;
+        }
+        interrupts_enable();
+    }
+    return status;
+}
+
 /**
  * @brief   Pushes an event to the event queue.
  */
 lcm_status_t event_queue_push(event_type_t event, const event_data_t *data)
 {
     lcm_status_t status = LCM_ERROR;
+    uint8_t index = 0U;
 
-    interrupts_disable();
-    // if the queue is not full and the event is valid
-    if ((!is_queue_full()) && (event < NUMBER_OF_EVENTS) && (event != EVENT_NULL))
+    if ((LCM_SUCCESS == get_free_index(&index)) && (event < NUMBER_OF_EVENTS) &&
+        (event != EVENT_NULL))
     {
         // copy event to event queue
-        event_queue[event_queue_tail].event = event;
-        event_data_t *event_data = (event_data_t *)&(event_queue[event_queue_tail].data);
+        event_queue[index].event = event;
+        event_data_t *event_data = (event_data_t *)&(event_queue[index].data);
 
         if (data != NULL)
         {
@@ -108,11 +123,8 @@ lcm_status_t event_queue_push(event_type_t event, const event_data_t *data)
             // clear data
             memset((void *)event_data, 0, sizeof(event_data_t));
         }
-        event_queue_tail = (event_queue_tail + 1U) % EVENT_QUEUE_SIZE;
         status = LCM_SUCCESS;
     }
-
-    interrupts_enable();
     return status;
 }
 

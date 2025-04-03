@@ -76,7 +76,7 @@ lcm_status_t status_leds_hw_refresh(const status_leds_color_t *buffer)
 
             // Disable interrupts to prevent timing issues while bitbanging the
             // LEDs.
-            interrupts_disable();
+            interrupts_disable(INTERRUPT_YIELD_NORMAL);
             ws2812_send_buffer((uint8_t *)scaled_buffer,
                                STATUS_LEDS_COUNT * sizeof(status_leds_color_t));
             interrupts_enable();

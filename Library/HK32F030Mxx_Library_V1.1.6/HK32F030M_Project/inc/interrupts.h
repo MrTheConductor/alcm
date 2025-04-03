@@ -20,6 +20,15 @@
 #define INTERRUPTS_H
 
 /**
+ * @brief Yield types.
+ */
+typedef enum
+{
+    INTERRUPT_YIELD_NORMAL, // Normal yield
+    INTERRUPT_YIELD_FORCE   // Do not yield, force interrupt now
+} interrupt_yield_t;
+
+/**
  * @brief Inhibit disabling interrupts.
  */
 void interrupts_inhibit_disable(void);
@@ -37,6 +46,6 @@ void interrupts_enable(void);
 /**
  * @brief Disable interrupts
  */
-void interrupts_disable(void);
+void interrupts_disable(interrupt_yield_t yield);
 
 #endif

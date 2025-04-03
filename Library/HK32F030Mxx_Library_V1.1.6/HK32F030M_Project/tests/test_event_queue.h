@@ -24,6 +24,7 @@
 #include "event_queue.h"
 #include "lcm_types.h"
 #include "config.h"
+#include "interrupts.h"
 
 void test_event_queue_pop_from_empty_queue(void **state)
 {
@@ -41,6 +42,7 @@ void test_event_queue_push(void **state)
     data.system_tick = 999;
 
     // Pushing an event should disable interrupts, push the event, enable interrupts
+    expect_value(interrupts_disable, yield, INTERRUPT_YIELD_FORCE);
     expect_function_call(interrupts_disable);
     expect_function_call(interrupts_enable);
     assert_int_equal(event_queue_push(EVENT_SYS_TICK, &data), LCM_SUCCESS);
@@ -56,6 +58,7 @@ void test_event_queue_push_null_data(void **state)
     (void)state;
 
     // Pushing an event should disable interrupts, push the event, enable interrupts
+    expect_value(interrupts_disable, yield, INTERRUPT_YIELD_FORCE);
     expect_function_call(interrupts_disable);
     expect_function_call(interrupts_enable);
     assert_int_equal(event_queue_push(EVENT_SYS_TICK, NULL), LCM_SUCCESS);
@@ -87,6 +90,7 @@ void test_event_queue_subscribe_and_notify(void **state)
     data.system_tick = 999;
 
     // Pushing an event should disable interrupts, push the event, enable interrupts
+    expect_value(interrupts_disable, yield, INTERRUPT_YIELD_FORCE);
     expect_function_call(interrupts_disable);
     expect_function_call(interrupts_enable);
     assert_int_equal(event_queue_push(EVENT_SYS_TICK, &data), LCM_SUCCESS);
@@ -107,6 +111,7 @@ void test_event_queue_full(void **state)
         data.system_tick = i;
 
         // Pushing an event should disable interrupts, push the event, enable interrupts
+        expect_value(interrupts_disable, yield, INTERRUPT_YIELD_FORCE);
         expect_function_call(interrupts_disable);
         expect_function_call(interrupts_enable);
         assert_int_equal(event_queue_push(EVENT_SYS_TICK, &data), LCM_SUCCESS);
@@ -118,6 +123,7 @@ void test_event_queue_full(void **state)
     data.system_tick = 999;
 
     // Pushing an event should disable interrupts, push the event, enable interrupts
+    expect_value(interrupts_disable, yield, INTERRUPT_YIELD_FORCE);
     expect_function_call(interrupts_disable);
     expect_function_call(interrupts_enable);
     assert_int_equal(event_queue_push(EVENT_SYS_TICK, &data), LCM_ERROR);
@@ -138,6 +144,7 @@ void test_event_queue_fault(void **state)
 {
     (void)state;
     // Pushing an event should disable interrupts, push the event, enable interrupts
+    expect_value(interrupts_disable, yield, INTERRUPT_YIELD_FORCE);
     expect_function_call(interrupts_disable);
     expect_function_call(interrupts_enable);
     fault(EMERGENCY_FAULT_INVALID_ARGUMENT);
@@ -155,6 +162,7 @@ void test_event_queue_subscribers_full(void **state)
     }
 
     // Try to subscribe one more should produce an error and push a fault
+    expect_value(interrupts_disable, yield, INTERRUPT_YIELD_FORCE);
     expect_function_call(interrupts_disable);
     expect_function_call(interrupts_enable);
     assert_int_equal(subscribe_event(EVENT_SYS_TICK, callback), LCM_ERROR);

@@ -54,15 +54,19 @@ void interrupts_enable(void)
 /**
  * @brief Disables interrupts
  */
-void interrupts_disable(void)
+void interrupts_disable(interrupt_yield_t yield)
 {
-    uint32_t timeout = 1000000; // Timeout for busy wait
-
-    while ((inhibit_disable_count > 0) && (timeout > 0))
+    if (yield == INTERRUPT_YIELD_NORMAL)
     {
-        // Busy wait until the inhibit_disable_count is zero
-        timeout--;
+        uint32_t timeout = 1000000U; // Timeout for busy wait
+
+        while ((inhibit_disable_count > 0U) && (timeout > 0U))
+        {
+            // Busy wait until the inhibit_disable_count is zero
+            timeout--;
+        }
     }
+    // Else do it now without waiting
     __set_PRIMASK(1);
 }
 

@@ -49,9 +49,9 @@ typedef enum
  */
 typedef enum
 {
-    SCAN_END_NEVER,         // Never stop: run continuously
-    SCAN_END_SINGLE_TICK,   // Terminate after a single tick
-    SCAN_END_MAX_MU         // Terminate at max mu
+    SCAN_END_NEVER,       // Never stop: run continuously
+    SCAN_END_SINGLE_TICK, // Terminate after a single tick
+    SCAN_END_MAX_MU       // Terminate at max mu
 } scan_end_t;
 
 /**
@@ -59,8 +59,8 @@ typedef enum
  */
 typedef enum
 {
-    SCAN_START_DEFAULT,     // Default: start at edge of LED array
-    SCAN_START_MU           // Start at arbitrary mu value
+    SCAN_START_DEFAULT, // Default: start at edge of LED array
+    SCAN_START_MU       // Start at arbitrary mu value
 } scan_start_t;
 
 /**
