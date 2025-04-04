@@ -60,6 +60,7 @@ static timer_id_t vesc_serial_tx_timerid = INVALID_TIMER_ID;
 static comm_get_values_setup_selective_t comm_get_values_setup_selective = {0};
 static bool_t vesc_alive = false;
 static uint8_t vesc_serial_outstaning_packet_count = 0;
+static vesc_serial_callback_t vesc_serial_callback = NULL;
 
 // Forward declarations
 EVENT_HANDLER(vesc_serial, rx);
@@ -94,6 +95,42 @@ lcm_status_t vesc_serial_init(void)
     // Subscribe to the VESC serial data event
     SUBSCRIBE_EVENT(vesc_serial, EVENT_SERIAL_DATA_RX, rx);
     SUBSCRIBE_EVENT(vesc_serial, EVENT_BOARD_MODE_CHANGED, board_mode_change);
+
+    return status;
+}
+
+/**
+ * @brief Clears the outstanding packets count and calls the callback if set
+ *
+ * This function is called when the VESC serial module is no longer busy.
+ * It clears the outstanding packet count and calls the callback if it is set.
+ */
+void clear_outstanding_packets(void)
+{
+    // If someone is waiting for a callback, call it now
+    if (vesc_serial_callback != NULL)
+    {
+        vesc_serial_callback();
+        vesc_serial_callback = NULL;
+    }
+    vesc_serial_outstaning_packet_count = 0;
+}
+
+/**
+ * @brief Checks if the VESC serial is busy and sets a callback if it is
+ * busy.
+ */
+lcm_status_t vesc_serial_check_busy_and_set_callback(vesc_serial_callback_t callback)
+{
+    lcm_status_t status = LCM_SUCCESS;
+
+    // If the VESC is alive and we are busy, set the callback
+    if ((vesc_alive == true) &&
+        (vesc_serial_outstaning_packet_count > 0U))
+    {
+        status = LCM_BUSY;
+        vesc_serial_callback = callback;
+    }
 
     return status;
 }
@@ -298,7 +335,7 @@ void process_packet(uint8_t *payload, uint8_t packet_length)
     }
 
     // Reset the outstanding packet count
-    vesc_serial_outstaning_packet_count = 0;
+    clear_outstanding_packets();
 
     // First byte of payload is the command ID
     switch (payload[0])
@@ -451,21 +488,20 @@ TIMER_CALLBACK(vesc_serial, tx)
 
     if (vesc_alive == true)
     {
-        if (vesc_serial_outstaning_packet_count >= MAX_OUTSTANDING_PACKETS)
+        // If the VESC is alive, we keep track of the number of outstanding
+        // (unanswered) packets.  If we exceed the maximum number of packets,
+        // we trigger a fault and assume the VESC is dead.
+        //
+        // Note: the outstanding packet count is also used to determine if the
+        // WS2812 LED updates should be disabled.
+        if (vesc_serial_outstaning_packet_count++ >= MAX_OUTSTANDING_PACKETS)
         {
             // Too many outstanding packets, trigger a fault
-            fault(EMERGENCY_FAULT_VESC);
-            vesc_alive = false; // VESC comms are dead
-        }
-        else
-        {
-            // Inhibit disabling interrupts to ensure that we receive the
-            // response from the VESC.
-            interrupts_inhibit_disable();
+            fault(EMERGENCY_FAULT_VESC_COMM_TIMEOUT);
+            vesc_alive = false;
+            clear_outstanding_packets();
         }
     }
-
-    vesc_serial_outstaning_packet_count++;
     vesc_serial_hw_send(buffer, 10);
 }
 

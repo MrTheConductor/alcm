@@ -74,6 +74,12 @@ bool_t is_queue_empty(void)
     return (head == tail);           // Compare the stable values
 }
 
+/**
+ * @brief Returns the next available index in the event queue.
+ * 
+ * @param index Pointer to the index to be filled.
+ * @return lcm_status_t LCM_SUCCESS if the index was successfully retrieved, LCM_ERROR otherwise.
+ */
 lcm_status_t get_free_index(uint8_t *index)
 {
     lcm_status_t status = LCM_ERROR;
@@ -82,7 +88,7 @@ lcm_status_t get_free_index(uint8_t *index)
     {
         // This section must be atomic and cannot wait becuase it may
         // be executed by an ISR
-        interrupts_disable(INTERRUPT_YIELD_FORCE);
+        interrupts_disable();
         uint8_t next_tail =
             (event_queue_tail + 1U) % EVENT_QUEUE_SIZE; // Calculate next tail position
 
@@ -123,6 +129,10 @@ lcm_status_t event_queue_push(event_type_t event, const event_data_t *data)
             // clear data
             memset((void *)event_data, 0, sizeof(event_data_t));
         }
+
+        // Wake processor
+        send_event();
+
         status = LCM_SUCCESS;
     }
     return status;
@@ -174,20 +184,22 @@ lcm_status_t notify_subscribers(volatile const event_struct_t *event)
  */
 lcm_status_t event_queue_pop_and_notify(void)
 {
-    lcm_status_t status = LCM_ERROR;
+    lcm_status_t status = LCM_SUCCESS;
 
-    if (!is_queue_empty())
+    // Allow processor to sleep while waiting for events
+    wait_for_event();
+
+    // Process everything in the queue
+    while (!is_queue_empty())
     {
-        if (LCM_SUCCESS == notify_subscribers(&event_queue[event_queue_head]))
+        status = notify_subscribers(&event_queue[event_queue_head]);
+        if (status != LCM_SUCCESS)
         {
-            event_queue_head = (event_queue_head + 1U) % EVENT_QUEUE_SIZE;
-            status = LCM_SUCCESS;
+            // An error has occurred, break out of loop
+            break;
         }
-        // No else needed, status is already LCM_ERROR
-    }
-    else
-    {
-        status = LCM_QUEUE_EMPTY;
+        // No else needed
+        event_queue_head = (event_queue_head + 1U) % EVENT_QUEUE_SIZE;
     }
 
     return status;

@@ -19,7 +19,8 @@
 #include "event_queue.h"
 #include "timer.h"
 #include "vesc_serial.h"
-#include "interrupts.h"
+#include "config.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -171,8 +172,8 @@ static ring_buffer_t *usart_rx_buffer = NULL;
  * When ORE is triggered, the overrun error flag is cleared and the error can
  * be handled by the user.
  */
-#undef UART_DEBUG
 #ifdef UART_DEBUG
+#pragma message("UART debug enabled")
 static uint16_t rxne_count = 0;
 static uint16_t idle_count = 0;
 static uint16_t ore_count = 0;
@@ -203,7 +204,6 @@ void USART1_IRQHandler(void)
         idle_count++;
 #endif
         USART1->ICR = USART_ICR_IDLECF; // Clear IDLE flag
-        interrupts_uninhibit_disable(); // Allow disabling interrupts again
         event_queue_push(EVENT_SERIAL_DATA_RX, NULL);
     }
 

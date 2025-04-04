@@ -29,31 +29,19 @@
 #include "settings.h"
 #include "mock_event_queue.h"
 #include "mock_animations.h"
+#include "mock_status_leds_hw.h"
 #include "timer.h"
 #include "config.h"
 
 static settings_t *settings = NULL; // Global variable to hold the settings for testing
 
-/**
- * @brief   Validation function for the status LEDs hardware module buffer.
- *
- * @details Verifies that the provided buffer matches the expected state.
- *
- * @param   data        The received data to be verified.
- * @param   check_data   The expected state to compare against.
- *
- * @return  1 if the buffer matches the expected state, 0 otherwise.
- */
-int validate_status_leds_buffer(const uintmax_t data, const uintmax_t check_data)
+int validate_status_leds_buffer(const status_leds_color_t* expected_buffer, const status_leds_color_t* actual_buffer)
 {
-    const status_leds_color_t *received_data = (const status_leds_color_t *)(uintptr_t)data;
-    const status_leds_color_t *expected_state = (const status_leds_color_t *)(uintptr_t)check_data;
-
     for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
     {
-        assert_int_equal(received_data[i].r, expected_state[i].r);
-        assert_int_equal(received_data[i].g, expected_state[i].g);
-        assert_int_equal(received_data[i].b, expected_state[i].b);
+        assert_int_equal(expected_buffer[i].r, actual_buffer[i].r);
+        assert_int_equal(expected_buffer[i].g, actual_buffer[i].g);
+        assert_int_equal(expected_buffer[i].b, actual_buffer[i].b);
     }
 
     return 1;
@@ -72,6 +60,7 @@ int test_status_leds_setup(void **state)
     settings->enable_status_leds = true;
     settings->personal_color = 123.0f;
 
+    expect_any(status_leds_hw_init, buffer);
     expect_function_call(status_leds_hw_init);
     expect_value(status_leds_hw_set_brightness, brightness, 1.0f);
     expect_function_call(stop_animation);
@@ -84,15 +73,13 @@ int test_status_leds_setup(void **state)
         expected_buffer[i].b = 0x00;
     }
 
+    expect_function_call(status_leds_hw_refresh);
+    expect_value(status_leds_hw_enable, enable, true);
     expect_value(hsl_to_rgb, h, settings->personal_color);
     expect_value(hsl_to_rgb, s, SATURATION_DEFAULT);
     expect_value(hsl_to_rgb, l, LIGHTNESS_DEFAULT);
     expect_any(hsl_to_rgb, color);
     expect_function_call(hsl_to_rgb);
-
-    expect_check(status_leds_hw_refresh, buffer, validate_status_leds_buffer,
-                 (uintmax_t)&expected_buffer);
-    expect_value(status_leds_hw_enable, enable, true);
 
     expect_value(subscribe_event, event, EVENT_BOARD_MODE_CHANGED);
     expect_any(subscribe_event, callback);
@@ -110,6 +97,7 @@ int test_status_leds_setup(void **state)
     expect_any(subscribe_event, callback);
 
     status_leds_init();
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
 
     return 0;
 }
@@ -137,9 +125,9 @@ static void test_status_leds_off(void **state)
     color.g = 0xFF;
     color.b = 0xFF;
     status_leds_set_color(&color, 0, STATUS_LEDS_COUNT - 1);
-    expect_check(status_leds_hw_refresh, buffer, validate_status_leds_buffer,
-                 (uintmax_t)&expected_buffer);
+    expect_function_call(status_leds_hw_refresh);
     status_leds_refresh();
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
 
     // Set the board mode to OFF
     event_data_t data = {0};
@@ -157,9 +145,9 @@ static void test_status_leds_off(void **state)
     will_return(board_mode_get, BOARD_MODE_OFF);
 
     expect_function_call(stop_animation);
-    expect_check(status_leds_hw_refresh, buffer, validate_status_leds_buffer,
-                 (uintmax_t)&expected_buffer);
+    expect_function_call(status_leds_hw_refresh);
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
 }
 
 /**
@@ -191,9 +179,9 @@ static void test_status_leds_set_color(void **state)
     status_leds_color_t color = {0};
     color.r = 0xFF;
     assert_int_equal(LCM_SUCCESS, status_leds_set_color(&color, 2, 4));
-    expect_check(status_leds_hw_refresh, buffer, validate_status_leds_buffer,
-                 (uintmax_t)&expected_buffer);
+    expect_function_call(status_leds_hw_refresh);
     status_leds_refresh();
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
 
     // [X] [X] [R] [R] [R] [X] [X] [G] [G] [G]
     for (uint8_t i = 7; i < 10; i++)
@@ -205,9 +193,9 @@ static void test_status_leds_set_color(void **state)
     color.r = 0x00;
     color.g = 0xFF;
     assert_int_equal(LCM_SUCCESS, status_leds_set_color(&color, 7, 9));
-    expect_check(status_leds_hw_refresh, buffer, validate_status_leds_buffer,
-                 (uintmax_t)&expected_buffer);
+    expect_function_call(status_leds_hw_refresh);
     status_leds_refresh();
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
 
     // [B] [X] [R] [R] [R] [X] [X] [G] [G] [G]
     for (uint8_t i = 0; i < 1; i++)
@@ -220,9 +208,9 @@ static void test_status_leds_set_color(void **state)
     color.g = 0x00;
     color.b = 0xFF;
     assert_int_equal(LCM_SUCCESS, status_leds_set_color(&color, 0, 0));
-    expect_check(status_leds_hw_refresh, buffer, validate_status_leds_buffer,
-                 (uintmax_t)&expected_buffer);
+    expect_function_call(status_leds_hw_refresh);
     status_leds_refresh();
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
 
     // Test invalid range
     assert_int_equal(LCM_ERROR, status_leds_set_color(&color, 4, 2));
@@ -349,12 +337,11 @@ static void test_status_leds_toggle(void **state)
         expected_buffer[i].g = 0x00;
         expected_buffer[i].b = 0x00;
     }
-    expect_check(status_leds_hw_refresh, buffer, validate_status_leds_buffer,
-                 (uintmax_t)&expected_buffer);
-
+    expect_function_call(status_leds_hw_refresh);
     expect_value(status_leds_hw_enable, enable, false);
 
     fade_animation_callback();
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
 
     // Turn on the LEDs
     settings->enable_status_leds = true;

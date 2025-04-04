@@ -57,4 +57,8 @@
 #define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
 #define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
 
+// DEBUG
+#undef UART_DEBUG
+#undef MANUAL_HSI_TRIMMING 
+
 #endif

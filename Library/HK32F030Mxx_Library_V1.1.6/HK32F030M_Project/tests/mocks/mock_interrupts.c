@@ -23,16 +23,6 @@
 
 #include "interrupts.h"
 
-void interrupts_inhibit_disable(void)
-{
-    function_called();
-}
-
-void interrupts_uninhibit_disable(void)
-{
-    function_called();
-}
-
 /**
  * @brief Enable interrupts
  */
@@ -44,8 +34,23 @@ void interrupts_enable(void)
 /**
  * @brief Disable interrupts
  */
-void interrupts_disable(interrupt_yield_t yield)
+void interrupts_disable()
 {
-    check_expected(yield);
+    function_called();
+}
+
+/**
+ * @brief Use the WFE instruction to wait for an event
+ */
+void wait_for_event(void)
+{
+    function_called();
+}
+
+/**
+ * @brief Use the SEV instruction to send an event
+ */
+void send_event(void)
+{
     function_called();
 }

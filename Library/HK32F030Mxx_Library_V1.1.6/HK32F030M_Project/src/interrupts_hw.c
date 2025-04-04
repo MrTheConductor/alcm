@@ -19,55 +19,36 @@
 #include "interrupts.h"
 #include "hk32f030m.h"
 
-volatile static uint8_t inhibit_disable_count = 0;
-
-/**
- * @brief Inhibit disabling interrupts.
- */
-void interrupts_inhibit_disable(void)
-{
-    if (inhibit_disable_count < 255)
-    {
-        inhibit_disable_count++;
-    }
-}
-
-/**
- * @brief Uninhibit disabling interrupts.
- */
-void interrupts_uninhibit_disable(void)
-{
-    if (inhibit_disable_count > 0)
-    {
-        inhibit_disable_count--;
-    }
-}
-
 /**
  * @brief Enables interrupts
  */
 void interrupts_enable(void)
 {
-    __set_PRIMASK(0);
+    __enable_irq();
 }
 
 /**
  * @brief Disables interrupts
  */
-void interrupts_disable(interrupt_yield_t yield)
+void interrupts_disable(void)
 {
-    if (yield == INTERRUPT_YIELD_NORMAL)
-    {
-        uint32_t timeout = 1000000U; // Timeout for busy wait
+    __disable_irq();
+}
 
-        while ((inhibit_disable_count > 0U) && (timeout > 0U))
-        {
-            // Busy wait until the inhibit_disable_count is zero
-            timeout--;
-        }
-    }
-    // Else do it now without waiting
-    __set_PRIMASK(1);
+/**
+ * @brief Use the WFE instruction to wait for an event
+ */
+void wait_for_event(void)
+{
+    __WFE();
+}
+
+/**
+ * @brief Use the SEV instruction to send an event
+ */
+void send_event(void)
+{
+    __SEV();
 }
 
 // Newline at end of file

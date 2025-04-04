@@ -16,34 +16,10 @@
  * You should have received a copy of the GNU General Public License along
  * with ALCM. If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef _STATUS_LEDS_HW_H
-#define _STATUS_LEDS_HW_H
+#ifndef MOCK_STATUS_LEDS_HW_H
+#define MOCK_STATUS_LEDS_HW_H
+#include "status_leds_hw.h"
 
-#include <stdint.h>
-#include "lcm_types.h"
-
-#define STATUS_LEDS_COUNT 10U
-
-/**
- * @brief Status LED color struct.
- *
- * This struct is used to represent the color of a single status LED.
- *
- * @struct status_leds_color_t
- * @var r     The red component of the color (0-255)
- * @var g     The green component of the color (0-255)
- * @var b     The blue component of the color (0-255)
- */
-typedef struct
-{
-    uint8_t g;
-    uint8_t r;
-    uint8_t b;
-} status_leds_color_t;
-
-void status_leds_hw_init(const status_leds_color_t *buffer);
-void status_leds_hw_refresh();
-void status_leds_hw_set_brightness(float32_t brightness);
-void status_leds_hw_enable(bool_t enable);
+const status_leds_color_t* mock_status_leds_hw_get_buffer(void);
 
 #endif

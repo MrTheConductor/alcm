@@ -34,6 +34,11 @@
 // requires no modification from board to board.
 #undef ENABLE_INPUT_VOLTAGE
 
+/**
+ * @brief VESC serial callback function type
+ */
+typedef void (*vesc_serial_callback_t)(void);
+
 lcm_status_t vesc_serial_init(void);
 ring_buffer_t *vesc_serial_get_rx_buffer(void);
 
@@ -45,5 +50,6 @@ float32_t vesc_serial_get_input_voltage(void);
 #endif
 float32_t vesc_serial_get_battery_level(void);
 uint8_t vesc_serial_get_fault(void);
+lcm_status_t vesc_serial_check_busy_and_set_callback(vesc_serial_callback_t callback);
 
 #endif

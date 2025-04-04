@@ -99,7 +99,7 @@ lcm_status_t status_leds_init(void)
     else
     {
         // Initialize the hardware
-        status_leds_hw_init();
+        status_leds_hw_init(status_leds_buffer);
 
         // Configure brightness
         status_leds_hw_set_brightness(status_leds_settings->status_brightness);
@@ -826,7 +826,8 @@ lcm_status_t status_leds_set_color(const status_leds_color_t *color, uint8_t beg
 
 lcm_status_t status_leds_refresh(void)
 {
-    return status_leds_hw_refresh(status_leds_buffer);
+    status_leds_hw_refresh();
+    return LCM_SUCCESS;
 }
 
 /**

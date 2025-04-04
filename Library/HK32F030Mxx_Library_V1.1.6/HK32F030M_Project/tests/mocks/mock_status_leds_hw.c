@@ -21,20 +21,23 @@
 #include <setjmp.h>
 #include <cmocka.h>
 
-#include "status_leds_hw.h"
+#include "mock_status_leds_hw.h"
+
+static const status_leds_color_t* mock_status_leds_hw_buffer = 0;
 
 /**
  * @brief   Mock function to initialize the status LEDs hardware module
  */
-void status_leds_hw_init(void)
+void status_leds_hw_init(const status_leds_color_t* buffer)
 {
+    mock_status_leds_hw_buffer = buffer;
+    check_expected_ptr(buffer);
     function_called();
 }
 
-lcm_status_t status_leds_hw_refresh(const status_leds_color_t* buffer)
+void status_leds_hw_refresh()
 {
-    check_expected_ptr(buffer);
-    return LCM_SUCCESS;
+    function_called();
 }
 
 void status_leds_hw_set_brightness(float brightness)
@@ -45,4 +48,9 @@ void status_leds_hw_set_brightness(float brightness)
 void status_leds_hw_enable(bool enable)
 {
     check_expected(enable);
+}
+
+const status_leds_color_t* mock_status_leds_hw_get_buffer(void)
+{
+    return mock_status_leds_hw_buffer;
 }

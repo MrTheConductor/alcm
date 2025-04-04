@@ -28,6 +28,7 @@
 
   */
 #include "hk32f030m.h"
+#include "config.h"
 /*system clock source*/
 
 #define SYSCLK_SRC_HSI8M		0x2
@@ -119,6 +120,7 @@ static void SetSysClock(void)
   /* For whatever reason, the HK32 chip on my devboard was not calibrated at
    * the factory. I had to manually calibrate it and set the trim values.
    */
+#pragma message("Manual HSI trimming values set")
   u32RCC_CR = RCC->CR;
   u32RCC_CR &= (uint32_t)((uint32_t)~(RCC_CR_HSITRIM|RCC_CR_HSICAL));
   u32RCC_CR |= (uint32_t)((0x09<<3) | (0x1A<<8)); 

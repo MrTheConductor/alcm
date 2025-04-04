@@ -20,25 +20,6 @@
 #define INTERRUPTS_H
 
 /**
- * @brief Yield types.
- */
-typedef enum
-{
-    INTERRUPT_YIELD_NORMAL, // Normal yield
-    INTERRUPT_YIELD_FORCE   // Do not yield, force interrupt now
-} interrupt_yield_t;
-
-/**
- * @brief Inhibit disabling interrupts.
- */
-void interrupts_inhibit_disable(void);
-
-/**
- * @brief Uninhibit disabling interrupts.
- */
-void interrupts_uninhibit_disable(void);
-
-/**
  * @brief Enable interrupts
  */
 void interrupts_enable(void);
@@ -46,6 +27,16 @@ void interrupts_enable(void);
 /**
  * @brief Disable interrupts
  */
-void interrupts_disable(interrupt_yield_t yield);
+void interrupts_disable();
+
+/**
+ * @brief Use the WFE instruction to wait for an event
+ */
+void wait_for_event(void);
+
+/**
+ * @brief Use the SEV instruction to send an event
+ */
+void send_event(void);
 
 #endif

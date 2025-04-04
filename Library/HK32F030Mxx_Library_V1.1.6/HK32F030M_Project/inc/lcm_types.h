@@ -15,6 +15,7 @@ typedef enum
 {
     LCM_SUCCESS = 0,         // Operation succeeded
     LCM_ERROR,               // Operation failed
+    LCM_BUSY,                // Operation busy
     LCM_ERROR_NULL_POINTER,  // Operation failed due to null pointer
     LCM_ERROR_INVALID_PARAM, // Operation failed due to invalid parameter
     LCM_QUEUE_EMPTY,         // Queue is empty

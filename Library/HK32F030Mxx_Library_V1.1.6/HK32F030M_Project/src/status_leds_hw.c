@@ -21,6 +21,7 @@
 #include "interrupts.h"
 #include "hk32f030m.h"
 #include "tiny_math.h"
+#include "vesc_serial.h"
 
 // Implemented in assembly (see ws2812.s)
 extern void ws2812_send_buffer(uint8_t *buffer, uint32_t length);
@@ -28,13 +29,14 @@ extern void ws2812_send_buffer(uint8_t *buffer, uint32_t length);
 // Global brightness scaling
 static uint16_t brightness_scale = 0U;
 static bool_t status_leds_enabled = false;
+static const status_leds_color_t *status_leds_hw_buffer = NULL;
 
 /**
  * @brief Initializes the status LEDs hardware module.
  *
  * This function initializes the status LEDs hardware and prepares it for use.
  */
-void status_leds_hw_init(void)
+void status_leds_hw_init(const status_leds_color_t *buffer)
 {
     GPIO_InitTypeDef GPIO_InitStructure = {0U};
     GPIO_StructInit(&GPIO_InitStructure);
@@ -50,17 +52,14 @@ void status_leds_hw_init(void)
     // Initialize the status LEDs
     brightness_scale = 0U;
     GPIOD->BSRR = GPIO_Pin_4 << 16U;
+
+    // Set the buffer to the provided buffer
+    status_leds_hw_buffer = buffer;
 }
 
-lcm_status_t status_leds_hw_refresh(const status_leds_color_t *buffer)
+void status_leds_hw_update(void)
 {
-    lcm_status_t result = LCM_SUCCESS;
-
-    if (buffer == NULL)
-    {
-        result = LCM_ERROR_NULL_POINTER;
-    }
-    else
+    if (status_leds_hw_buffer != NULL)
     {
         if (status_leds_enabled)
         {
@@ -69,21 +68,29 @@ lcm_status_t status_leds_hw_refresh(const status_leds_color_t *buffer)
             // Scale LEDs by global brightness
             for (uint8_t i = 0U; i < STATUS_LEDS_COUNT; i++)
             {
-                scaled_buffer[i].r = (buffer[i].r * brightness_scale) >> 8U;
-                scaled_buffer[i].g = (buffer[i].g * brightness_scale) >> 8U;
-                scaled_buffer[i].b = (buffer[i].b * brightness_scale) >> 8U;
+                scaled_buffer[i].r = (status_leds_hw_buffer[i].r * brightness_scale) >> 8U;
+                scaled_buffer[i].g = (status_leds_hw_buffer[i].g * brightness_scale) >> 8U;
+                scaled_buffer[i].b = (status_leds_hw_buffer[i].b * brightness_scale) >> 8U;
             }
 
             // Disable interrupts to prevent timing issues while bitbanging the
             // LEDs.
-            interrupts_disable(INTERRUPT_YIELD_NORMAL);
+            interrupts_disable();
             ws2812_send_buffer((uint8_t *)scaled_buffer,
                                STATUS_LEDS_COUNT * sizeof(status_leds_color_t));
             interrupts_enable();
         }
     }
+}
 
-    return result;
+void status_leds_hw_refresh()
+{
+    if (LCM_SUCCESS == vesc_serial_check_busy_and_set_callback(status_leds_hw_update))
+    {
+        // All clear, update the LEDs
+        status_leds_hw_update();
+    }
+    // Else, VESC serial is busy and we will update the LEDs when it is free
 }
 
 /**
