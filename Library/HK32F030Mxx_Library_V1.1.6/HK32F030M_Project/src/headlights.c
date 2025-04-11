@@ -519,8 +519,7 @@ EVENT_HANDLER(headlights, state_change)
         {
             // Enable immediately
             headlights_hw_enable(headlights_settings->enable_headlights);
-            headlights_hw_set_brightness((uint16_t)(HEADLIGHTS_HW_MAX_BRIGHTNESS *
-                                                    headlights_settings->headlight_brightness));
+            headlights_set_brigthness(HEADLIGHTS_BRIGHTNESS_HIGH, HEADLIGHTS_SET_INSTANT);
         }
         else
         {
