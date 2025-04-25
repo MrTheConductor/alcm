@@ -105,59 +105,93 @@ typedef enum
 typedef void (*animation_callback_t)(void);
 
 /**
- * @brief Set up a scan animation.
+ * @brief Sets up a scan animation.
  *
- * @param buffer Pointer to the LED buffer.
- * @param direction Direction of the scan animation.
- * @param color_mode Color mode for the animation.
- * @param movement_speed Speed of the movement.
- * @param sigma Sigma value for the animation.
- * @param hue_min Minimum hue value.
- * @param hue_max Maximum hue value.
- * @param color_speed Speed of the color change.
- * @param rgb Pointer to the RGB color.
- */
-void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
-                          color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
-                          float hue_max, float color_speed, scan_start_t scan_start,
-                          scan_end_t scan_end, float init_mu, const status_leds_color_t *rgb);
-
-/**
- * @brief Set up a fill animation.
+ * This function initializes a scan animation with the specified parameters.
+ * The animation involves scanning LEDs in a specified direction with configurable
+ * color and movement properties.
  *
- * @param buffer Pointer to the LED buffer.
- * @param color_mode Color mode for the animation.
- * @param brightness_mode Brightness mode for the animation.
- * @param fill_mode Fill mode for the animation.
- * @param first_led Index of the first LED.
- * @param last_led Index of the last LED.
- * @param hue_min Minimum hue value.
- * @param hue_max Maximum hue value.
- * @param color_speed Speed of the color change.
- * @param brightness_min Minimum brightness value.
+ * @param buffer Pointer to the LED buffer to be used for the animation.
+ * @param direction The direction of the scan (e.g., left-to-right, right-to-left).
+ * @param color_mode The color animation mode (e.g., HSV increase, RGB).
+ * @param movement_speed The speed of the scan movement.
+ * @param sigma The sigma value for the animation (affects spread or intensity).
+ * @param hue_min The minimum hue value for the color range.
+ * @param hue_max The maximum hue value for the color range.
+ * @param color_speed The speed of the color change.
+ * @param scan_start The starting position of the scan (e.g., default, arbitrary mu).
+ * @param scan_end The condition for ending the scan (e.g., never, single tick).
+ * @param init_mu The initial mu value for the scan.
+ * @param rgb Pointer to an RGB color structure for solid color mode.
+ *
+ * @return The ID of the created animation.
  */
-void fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
-                          brightness_mode_t brightness_mode, fill_mode_t fill_mode,
-                          uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
-                          float color_speed, float brightness_min, float brightness_max,
-                          float brightness_speed, uint16_t brightness_sequence,
-                          const status_leds_color_t *rgb);
+uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
+                              color_mode_t color_mode, float movement_speed, float sigma,
+                              float hue_min, float hue_max, float color_speed,
+                              scan_start_t scan_start, scan_end_t scan_end, float init_mu,
+                              const status_leds_color_t *rgb);
 
 /**
-void fade_animation_setup(status_leds_color_t *buffer,
-                          uint16_t period,
-                          animation_callback_t callback);
- * @param buffer Pointer to the LED buffer.
- * @param period Period of the fade animation.
- * @param callback Callback function to be called at the end of the animation.
+ * @brief Sets up the fill animation for status LEDs with specified parameters.
+ *
+ * This function configures the fill animation for a range of LEDs, allowing
+ * customization of color, brightness, and animation behavior.
+ *
+ * @param buffer               Pointer to the buffer where the LED colors will be stored.
+ * @param color_mode           The mode of color generation (e.g., static, dynamic).
+ * @param brightness_mode      The mode of brightness control (e.g., constant, pulsing).
+ * @param fill_mode            The mode of filling LEDs (e.g., sequential, random).
+ * @param first_led            Index of the first LED in the range to be animated.
+ * @param last_led             Index of the last LED in the range to be animated.
+ * @param hue_min              Minimum hue value for the color range (0.0 to 1.0).
+ * @param hue_max              Maximum hue value for the color range (0.0 to 1.0).
+ * @param color_speed          Speed of color transitions.
+ * @param brightness_min       Minimum brightness value (0.0 to 1.0).
+ * @param brightness_max       Maximum brightness value (0.0 to 1.0).
+ * @param brightness_speed     Speed of brightness transitions.
+ * @param brightness_sequence  Sequence pattern for brightness changes.
+ * @param rgb                  Pointer to a constant color structure for static RGB values.
+ *
+ * @return The number of LEDs configured for the animation.
  */
-void fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
-                          animation_callback_t callback);
+uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
+                              brightness_mode_t brightness_mode, fill_mode_t fill_mode,
+                              uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
+                              float color_speed, float brightness_min, float brightness_max,
+                              float brightness_speed, uint16_t brightness_sequence,
+                              const status_leds_color_t *rgb);
 
 /**
- * @brief Set up a fire animation.
+ * @brief Sets up a fade animation for status LEDs.
+ *
+ * This function initializes a fade animation with the specified parameters,
+ * allowing the LEDs to transition smoothly between colors over a given period.
+ *
+ * @param buffer Pointer to a buffer of type `status_leds_color_t` that holds
+ *               the color data for the animation.
+ * @param period The duration of the fade animation in milliseconds.
+ * @param callback A callback function of type `animation_callback_t` that will
+ *                 be invoked when the animation completes or requires updates.
+ * 
+ * @return The number of steps or frames required for the fade animation.
  */
-void fire_animation_setup(status_leds_color_t *buffer);
+uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
+                              animation_callback_t callback);
+
+/**
+ * @brief Sets up the fire animation on the status LEDs.
+ * 
+ * This function initializes the fire animation by configuring the provided
+ * buffer with the necessary color data for the status LEDs.
+ * 
+ * @param buffer Pointer to a buffer of type `status_leds_color_t` where the
+ *               animation color data will be stored.
+ * 
+ * @return A 16-bit unsigned integer indicating the result of the setup process.
+ *         The specific meaning of the return value depends on the implementation.
+ */
+uint16_t fire_animation_setup(status_leds_color_t *buffer);
 
 /**
  * @brief Stop the current animation.
@@ -184,5 +218,16 @@ void stop_animation(void);
  * RGB values.
  */
 void hsl_to_rgb(float h, float s, float l, status_leds_color_t *color);
+
+/**
+ * @brief Retrieves the ID of the current animation.
+ * 
+ * This function returns a 16-bit unsigned integer representing the unique
+ * identifier of the currently active animation. The ID can be used to
+ * identify or manage animations within the system.
+ * 
+ * @return uint16_t The ID of the current animation.
+ */
+uint16_t get_animation_id(void);
 
 #endif

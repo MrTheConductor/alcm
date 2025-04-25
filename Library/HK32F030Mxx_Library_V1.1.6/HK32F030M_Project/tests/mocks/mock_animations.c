@@ -21,7 +21,8 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include "mock_animations.h"
-void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
+
+uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
     color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
     float hue_max, float color_speed,
     scan_start_t scan_start,
@@ -42,9 +43,10 @@ void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t directio
     check_expected(init_mu);
     check_expected_ptr(rgb);
     function_called();
+    return mock_type(uint16_t);
 }
 
-void fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
+uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
                           brightness_mode_t brightness_mode, fill_mode_t fill_mode,
                           uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
                           float color_speed, float brightness_min, float brightness_max,
@@ -65,17 +67,19 @@ void fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
     check_expected(brightness_sequence);
     check_expected_ptr(rgb);
     function_called();
+    return mock_type(uint16_t);
 }
 
 static animation_callback_t mock_callback;
 
-void fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
+uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
                           animation_callback_t callback) {
     check_expected(buffer);
     check_expected(period);
     check_expected_ptr(callback);
     function_called();
     mock_callback = callback;
+    return mock_type(uint16_t);
 }
 
 void fade_animation_callback(void) {
@@ -88,9 +92,10 @@ void clear_fade_animation_callback(void) {
     mock_callback = NULL;
 }
 
-void fire_animation_setup(status_leds_color_t *buffer) {
+uint16_t fire_animation_setup(status_leds_color_t *buffer) {
     check_expected(buffer);
     function_called();
+    return mock_type(uint16_t);
 }
 
 void stop_animation(void) {
@@ -103,4 +108,9 @@ void hsl_to_rgb(float h, float s, float l, status_leds_color_t *color) {
     check_expected(l);
     check_expected_ptr(color);
     function_called();
+}
+
+uint16_t get_animation_id(void) {
+    function_called();
+    return mock_type(uint16_t);
 }

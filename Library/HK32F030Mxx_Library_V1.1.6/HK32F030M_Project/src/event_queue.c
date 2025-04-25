@@ -76,7 +76,7 @@ bool_t is_queue_empty(void)
 
 /**
  * @brief Returns the next available index in the event queue.
- * 
+ *
  * @param index Pointer to the index to be filled.
  * @return lcm_status_t LCM_SUCCESS if the index was successfully retrieved, LCM_ERROR otherwise.
  */

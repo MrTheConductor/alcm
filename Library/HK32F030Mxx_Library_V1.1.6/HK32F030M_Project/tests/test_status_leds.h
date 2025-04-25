@@ -35,7 +35,8 @@
 
 static settings_t *settings = NULL; // Global variable to hold the settings for testing
 
-int validate_status_leds_buffer(const status_leds_color_t* expected_buffer, const status_leds_color_t* actual_buffer)
+int validate_status_leds_buffer(const status_leds_color_t *expected_buffer,
+                                const status_leds_color_t *actual_buffer)
 {
     for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
     {
@@ -233,6 +234,7 @@ static void test_status_leds_boot(void **state)
     expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
     expect_value(fade_animation_setup, callback, NULL);
     expect_function_call(fade_animation_setup);
+    will_return(fade_animation_setup, 1U);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 
@@ -241,6 +243,7 @@ static void test_status_leds_boot(void **state)
     settings->boot_animation = ANIMATION_OPTION_FIRE;
     expect_any(fire_animation_setup, buffer);
     expect_function_call(fire_animation_setup);
+    will_return(fire_animation_setup, 1U);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 
@@ -269,6 +272,7 @@ void expect_fill_animation(void)
     expect_any(fill_animation_setup, brightness_sequence);
     expect_any(fill_animation_setup, rgb);
     expect_function_call(fill_animation_setup);
+    will_return(fill_animation_setup, 1U);
 }
 
 void expect_scan_animation(void)
@@ -286,6 +290,7 @@ void expect_scan_animation(void)
     expect_any(scan_animation_setup, init_mu);
     expect_any(scan_animation_setup, rgb);
     expect_function_call(scan_animation_setup);
+    will_return(scan_animation_setup, 1U);
 }
 
 static void test_status_leds_fault(void **state)
@@ -320,6 +325,7 @@ static void test_status_leds_toggle(void **state)
     expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
     expect_not_value(fade_animation_setup, callback, NULL);
     expect_function_call(fade_animation_setup);
+    will_return(fade_animation_setup, 1U);
 
     event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_LIGHTS, &data);
 
@@ -376,6 +382,7 @@ static void test_status_leds_idle_dozing(void **state)
     expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
     expect_value(fade_animation_setup, callback, NULL);
     expect_function_call(fade_animation_setup);
+    will_return(fade_animation_setup, 1U);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 

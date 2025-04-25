@@ -122,6 +122,7 @@ typedef void (*animation_tick_t)(uint32_t tick);
 static timer_id_t animation_timer = INVALID_TIMER_ID;
 static animation_config_t animation_config = {0};
 static animation_tick_t timer_callback = NULL;
+static uint16_t animation_id = 0U; // Current animation ID
 
 // Each animation is implemented as a timer callback
 TIMER_CALLBACK(animation, tick);
@@ -771,10 +772,11 @@ void fire_animation_tick(uint32_t tick)
 /**
  * @brief Initializes the scan animation with the specified parameters.
  */
-void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
-                          color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
-                          float hue_max, float color_speed, scan_start_t scan_start,
-                          scan_end_t scan_end, float init_mu, const status_leds_color_t *rgb)
+uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
+                              color_mode_t color_mode, float movement_speed, float sigma,
+                              float hue_min, float hue_max, float color_speed,
+                              scan_start_t scan_start, scan_end_t scan_end, float init_mu,
+                              const status_leds_color_t *rgb)
 {
     float mu_falloff = calculate_mu_falloff(sigma, 0.01f);
     float mu_start = 0.0f;
@@ -840,17 +842,20 @@ void scan_animation_setup(status_leds_color_t *buffer, scan_direction_t directio
         // Start animation timer
         animation_start(scan_animation_tick);
     }
+
+    // Return the animation ID
+    return animation_id++;
 }
 
 /**
  * @brief Set up a fill animation.
  */
-void fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
-                          brightness_mode_t brightness_mode, fill_mode_t fill_mode,
-                          uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
-                          float color_speed, float brightness_min, float brightness_max,
-                          float brightness_speed, uint16_t brightness_sequence,
-                          const status_leds_color_t *rgb)
+uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
+                              brightness_mode_t brightness_mode, fill_mode_t fill_mode,
+                              uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
+                              float color_speed, float brightness_min, float brightness_max,
+                              float brightness_speed, uint16_t brightness_sequence,
+                              const status_leds_color_t *rgb)
 {
     // Copy the animation configuration
     animation_config.fill.buffer = buffer;
@@ -864,13 +869,16 @@ void fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
                     brightness_max, brightness_speed, brightness_sequence);
 
     animation_start(fill_animation_tick);
+
+    // Return the animation ID
+    return animation_id++;
 }
 
 /**
  * @brief Set up a fade animation.
  */
-void fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
-                          animation_callback_t callback)
+uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
+                              animation_callback_t callback)
 {
     animation_config.fade.buffer = buffer;
     animation_config.fade.period_ms = period;
@@ -878,9 +886,12 @@ void fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
     animation_config.fade.callback = callback;
 
     animation_start(fade_animation_tick);
+
+    // Return the animation ID
+    return animation_id++;
 }
 
-void fire_animation_setup(status_leds_color_t *buffer)
+uint16_t fire_animation_setup(status_leds_color_t *buffer)
 {
     animation_config.fire.buffer = buffer;
     animation_config.fire.prng_state = 123;
@@ -890,6 +901,9 @@ void fire_animation_setup(status_leds_color_t *buffer)
     }
 
     animation_start(fire_animation_tick);
+
+    // Return the animation ID
+    return animation_id++;
 }
 
 /**
@@ -924,4 +938,9 @@ void stop_animation(void)
         animation_timer = INVALID_TIMER_ID;
     }
     timer_callback = NULL;
+}
+
+uint16_t get_animation_id(void)
+{
+    return animation_id;
 }

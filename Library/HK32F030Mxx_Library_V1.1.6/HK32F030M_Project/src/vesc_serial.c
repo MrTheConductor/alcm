@@ -125,8 +125,7 @@ lcm_status_t vesc_serial_check_busy_and_set_callback(vesc_serial_callback_t call
     lcm_status_t status = LCM_SUCCESS;
 
     // If the VESC is alive and we are busy, set the callback
-    if ((vesc_alive == true) &&
-        (vesc_serial_outstaning_packet_count > 0U))
+    if ((vesc_alive == true) && (vesc_serial_outstaning_packet_count > 0U))
     {
         status = LCM_BUSY;
         vesc_serial_callback = callback;
