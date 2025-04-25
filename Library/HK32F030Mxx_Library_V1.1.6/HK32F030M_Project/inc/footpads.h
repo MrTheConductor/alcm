@@ -37,13 +37,13 @@ typedef uint8_t footpads_state_t;
  *
  * This function initializes the footpads hardware and prepares it for use.
  */
-lcm_status_t footpads_init();
+lcm_status_t footpads_init(void);
 
 /**
  * @brief Gets the current state of the footpads.
  * @return A bitwise OR of #LEFT_FOOTPAD and #RIGHT_FOOTPAD indicating the state
  * of each footpad.
  */
-footpads_state_t footpads_get_state();
+footpads_state_t footpads_get_state(void);
 
 #endif

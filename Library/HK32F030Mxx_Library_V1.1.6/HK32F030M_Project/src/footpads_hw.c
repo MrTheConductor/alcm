@@ -21,6 +21,15 @@
 
 #define SCALING_FACTOR 0.0012890625f
 
+// Function to calibrate the ADC for footpads hardware
+void footpads_hw_calibrate()
+{
+    ADC_DeInit(ADC1);
+    ADC_GetCalibrationFactor(ADC1);
+    ADC_Cmd(ADC1, ENABLE);
+}
+
+// Function to initialize the footpads hardware
 void footpads_hw_init()
 {
     GPIO_InitTypeDef GPIO_InitStructure = {0};
@@ -44,24 +53,18 @@ void footpads_hw_init()
     GPIO_Init(GPIOC, &GPIO_InitStructure);
     GPIO_PinAFConfig(GPIOC, GPIO_PinSource4, GPIO_AF_7);
 
-    ADC_DeInit(ADC1);
     ADC_StructInit(&ADC_InitStructure);
-    ADC_InitStructure.ADC_ContinuousConvMode = ENABLE;
-    ADC_InitStructure.ADC_ExternalTrigConv = ADC_ExternalTrigConvEdge_None;
-    ADC_InitStructure.ADC_DataAlign = ADC_DataAlign_Right;
-    ADC_InitStructure.ADC_ScanDirection = ADC_ScanDirection_Upward;
     ADC_Init(ADC1, &ADC_InitStructure);
-    ADC_Cmd(ADC1, ENABLE);
+
+    footpads_hw_calibrate();
 }
 
+// Function to read ADC value from a specific channel
 uint16_t read_adc(uint8_t channel)
 {
     uint16_t adc_value = 0;
-    ADC_StopOfConversion(ADC1);
-    ADC_ClearFlag(ADC1, ADC_FLAG_EOC);
 
     ADC_ChannelConfig(ADC1, channel, ADC_SampleTime_239_5Cycles);
-
     while (!ADC_GetFlagStatus(ADC1, ADC_FLAG_ADRDY))
         ;
     ADC_StartOfConversion(ADC1);
@@ -69,14 +72,17 @@ uint16_t read_adc(uint8_t channel)
     while (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET)
         ;
     adc_value = ADC_GetConversionValue(ADC1);
+    ADC_ClearFlag(ADC1, ADC_FLAG_EOC);
     return adc_value;
 }
 
+// Function to get the left footpad value
 float footpads_hw_get_left()
 {
     return (float)(read_adc(ADC_Channel_2) * SCALING_FACTOR);
 }
 
+// Function to get the right footpad value
 float footpads_hw_get_right()
 {
     return (float)(read_adc(ADC_Channel_3) * SCALING_FACTOR);

@@ -27,7 +27,7 @@ void interrupts_enable(void);
 /**
  * @brief Disable interrupts
  */
-void interrupts_disable();
+void interrupts_disable(void);
 
 /**
  * @brief Use the WFE instruction to wait for an event

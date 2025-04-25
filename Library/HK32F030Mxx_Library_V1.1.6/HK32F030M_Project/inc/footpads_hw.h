@@ -31,7 +31,7 @@
  * to function correctly. It should be called during the system initialization
  * phase before any footpad operations are performed.
  */
-void footpads_hw_init();
+void footpads_hw_init(void);
 
 /**
  * @brief Retrieves the value from the left footpad hardware sensor.
@@ -41,7 +41,7 @@ void footpads_hw_init();
  *
  * @return The current value from the left footpad hardware sensor.
  */
-float footpads_hw_get_left();
+float footpads_hw_get_left(void);
 
 /**
  * @brief Retrieves the value from the right footpad sensor.
@@ -51,6 +51,11 @@ float footpads_hw_get_left();
  *
  * @return float The current value from the right footpad sensor.
  */
-float footpads_hw_get_right();
+float footpads_hw_get_right(void);
+
+/**
+ * @brief Calibrates the footpads hardware.
+ */
+void footpads_hw_calibrate(void);
 
 #endif // FOOTPADS_HW_H
