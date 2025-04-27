@@ -1,10 +1,11 @@
 # Ignore project and build directoires
-Project
+Project/**
 Testing
 build
 StatusBarSimulator
 **.orig
 
 # Except
-!ALCM.uvoptx
-!ALCM.uvprojx
+!Project/MDK5/
+!Project/MDK5/ALCM.uvoptx
+!Project/MDK5/ALCM.uvprojx
