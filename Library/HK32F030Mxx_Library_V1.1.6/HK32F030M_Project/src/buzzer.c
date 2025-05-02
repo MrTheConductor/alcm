@@ -21,10 +21,11 @@
 #include "board_mode.h"
 #include "buzzer.h"
 #include "buzzer_hw.h"
+#include "config.h"
 #include "event_queue.h"
-#include "timer.h"
-#include "settings.h"
 #include "function_generator.h"
+#include "settings.h"
+#include "timer.h"
 
 #define TICK_INTERVAL_MS 10
 #define SEQUENCE_PERIOD_MS 320
@@ -210,12 +211,16 @@ EVENT_HANDLER(buzzer, board_mode)
     case BOARD_MODE_RIDING:
         switch (data->board_mode.submode)
         {
+#ifdef BUZZER_ENABLE_DANGER
         case BOARD_SUBMODE_RIDING_DANGER:
             buzzer_play_sequence(DANGER_SEQUENCE, true);
             break;
+#endif // BUZZER_ENABLE_DANGER
+#ifdef BUZZER_ENABLE_WARNING
         case BOARD_SUBMODE_RIDING_WARNING:
             buzzer_play_sequence(WARNING_SEQUENCE, true);
             break;
+#endif // BUZZER_ENABLE_WARNING
         default:
             buzzer_reset_sequence();
             break;

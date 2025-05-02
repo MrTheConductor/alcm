@@ -57,6 +57,11 @@
 #define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
 #define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
 
+// Buzzer configuration
+#define ENABLE_BUZZER 1 // Enable the buzzer module
+#undef BUZZER_ENABLE_WARNING // Enable beeper at warning level
+#define BUZZER_ENABLE_DANGER 1 // Enable beeper at danger level
+
 // DEBUG
 #undef UART_DEBUG
 #undef MANUAL_HSI_TRIMMING 
