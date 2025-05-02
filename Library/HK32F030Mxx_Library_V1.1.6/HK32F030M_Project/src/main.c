@@ -30,6 +30,7 @@
 #include "button_events.h"
 #include "buzzer.h"
 #include "command_processor.h"
+#include "config.h"
 #include "event_queue.h"
 #include "footpads.h"
 #include "headlights.h"
@@ -68,7 +69,9 @@ lcm_status_t system_init(void)
     INIT(button_events);
     INIT(board_mode);
     INIT(power);
+#ifdef ENABLE_BUZZER
     INIT(buzzer);
+#endif // ENABLE_BUZZER
     INIT(headlights);
     INIT(footpads);
     INIT(status_leds);
