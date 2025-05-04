@@ -219,42 +219,6 @@ static void test_status_leds_set_color(void **state)
     assert_int_equal(LCM_ERROR, status_leds_set_color(NULL, 0, STATUS_LEDS_COUNT));
 }
 
-static void test_status_leds_boot(void **state)
-{
-    event_data_t data = {0};
-    data.board_mode.mode = BOARD_MODE_BOOTING;
-    data.board_mode.submode = BOARD_SUBMODE_UNDEFINED;
-    will_return(board_mode_get, BOARD_MODE_BOOTING);
-
-    // Disable boot animation
-    settings->boot_animation = ANIMATION_OPTION_NONE;
-
-    // Expect a fade to black
-    expect_any(fade_animation_setup, buffer);
-    expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
-    expect_value(fade_animation_setup, callback, NULL);
-    expect_function_call(fade_animation_setup);
-    will_return(fade_animation_setup, 1U);
-
-    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
-
-    // Set boot animation to fire
-    will_return(board_mode_get, BOARD_MODE_BOOTING);
-    settings->boot_animation = ANIMATION_OPTION_FIRE;
-    expect_any(fire_animation_setup, buffer);
-    expect_function_call(fire_animation_setup);
-    will_return(fire_animation_setup, 1U);
-
-    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
-
-    // Any non-mode change event should not affect the boot animation
-    will_return(board_mode_get, BOARD_MODE_BOOTING);
-    event_queue_call_mocked_callback(EVENT_FOOTPAD_CHANGED, &data);
-
-    will_return(board_mode_get, BOARD_MODE_BOOTING);
-    event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);
-}
-
 void expect_fill_animation(void)
 {
     expect_any(fill_animation_setup, buffer);
@@ -291,6 +255,41 @@ void expect_scan_animation(void)
     expect_any(scan_animation_setup, rgb);
     expect_function_call(scan_animation_setup);
     will_return(scan_animation_setup, 1U);
+}
+
+
+static void test_status_leds_boot(void **state)
+{
+    event_data_t data = {0};
+    data.board_mode.mode = BOARD_MODE_BOOTING;
+    data.board_mode.submode = BOARD_SUBMODE_UNDEFINED;
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
+
+    // Disable boot animation
+    settings->boot_animation = ANIMATION_OPTION_NONE;
+
+    // Expect a fade to black
+    expect_any(fade_animation_setup, buffer);
+    expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
+    expect_value(fade_animation_setup, callback, NULL);
+    expect_function_call(fade_animation_setup);
+    will_return(fade_animation_setup, 1U);
+
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
+
+    // Set boot animation to float wheel classic
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
+    settings->boot_animation = ANIMATION_OPTION_FLOATWHEEL_CLASSIC;
+    expect_scan_animation();
+
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
+
+    // Any non-mode change event should not affect the boot animation
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
+    event_queue_call_mocked_callback(EVENT_FOOTPAD_CHANGED, &data);
+
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
+    event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);
 }
 
 static void test_status_leds_fault(void **state)

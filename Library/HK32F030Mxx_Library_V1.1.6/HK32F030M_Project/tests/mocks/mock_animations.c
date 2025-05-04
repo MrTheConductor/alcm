@@ -92,12 +92,6 @@ void clear_fade_animation_callback(void) {
     mock_callback = NULL;
 }
 
-uint16_t fire_animation_setup(status_leds_color_t *buffer) {
-    check_expected(buffer);
-    function_called();
-    return mock_type(uint16_t);
-}
-
 void stop_animation(void) {
     function_called();
 }
