@@ -32,8 +32,8 @@ void footpads_hw_calibrate()
 // Function to initialize the footpads hardware
 void footpads_hw_init()
 {
-    GPIO_InitTypeDef GPIO_InitStructure = {0};
-    ADC_InitTypeDef ADC_InitStructure = {0};
+    GPIO_InitTypeDef GPIO_InitStructure;
+    ADC_InitTypeDef ADC_InitStructure;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOD, ENABLE);
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOC, ENABLE);
@@ -43,13 +43,11 @@ void footpads_hw_init()
     GPIO_StructInit(&GPIO_InitStructure);
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_3;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
     GPIO_Init(GPIOD, &GPIO_InitStructure);
     GPIO_PinAFConfig(GPIOD, GPIO_PinSource3, GPIO_AF_7);
 
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AN;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
     GPIO_Init(GPIOC, &GPIO_InitStructure);
     GPIO_PinAFConfig(GPIOC, GPIO_PinSource4, GPIO_AF_7);
 

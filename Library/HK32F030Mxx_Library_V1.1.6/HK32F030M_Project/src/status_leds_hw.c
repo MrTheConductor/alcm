@@ -38,15 +38,12 @@ static const status_leds_color_t *status_leds_hw_buffer = NULL;
  */
 void status_leds_hw_init(const status_leds_color_t *buffer)
 {
-    GPIO_InitTypeDef GPIO_InitStructure = {0U};
-    GPIO_StructInit(&GPIO_InitStructure);
+    GPIO_InitTypeDef GPIO_InitStructure;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOD, ENABLE);
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
-    GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
+    GPIO_StructInit(&GPIO_InitStructure);
     GPIO_InitStructure.GPIO_Pin = GPIO_Pin_4;
-    GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_10MHz;
+    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_OUT;
     GPIO_Init(GPIOD, &GPIO_InitStructure);
 
     // Initialize the status LEDs

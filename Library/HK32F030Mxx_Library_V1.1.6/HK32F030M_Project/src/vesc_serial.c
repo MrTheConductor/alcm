@@ -40,7 +40,7 @@
 
 #define START_BYTE 0x02
 #define END_BYTE 0x03
-#define MAX_PACKET_LENGTH 32
+#define MAX_PACKET_LENGTH 32U
 #define MAX_OUTSTANDING_PACKETS 5
 
 typedef struct
@@ -360,13 +360,10 @@ void process_packet(uint8_t *payload, uint8_t packet_length)
  */
 EVENT_HANDLER(vesc_serial, rx)
 {
-    uint8_t byte = 0;
-    uint16_t crc = 0;
-    uint8_t packet_length = 0;
-
-    // Initialization should not be necessary, since we will immediately
-    // overwrite the buffer, but MISRA requires it
-    uint8_t payload[MAX_PACKET_LENGTH] = {0};
+    uint8_t byte = 0U;
+    uint16_t crc = 0U;
+    uint8_t packet_length = 0U;
+    uint8_t payload[MAX_PACKET_LENGTH];
 
     // Search for start byte (or end of data)
     while (byte != START_BYTE && ring_buffer_pop((ring_buffer_t *)&vesc_serial_rx_buffer, &byte))

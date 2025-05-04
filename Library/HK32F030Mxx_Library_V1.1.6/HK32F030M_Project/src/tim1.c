@@ -26,11 +26,7 @@ lcm_status_t TIM1_init(void)
     TIM_TimeBaseStructInit(&TIM_TimeBaseStructure);
 
     TIM_TimeBaseStructure.TIM_Prescaler = 32 - 1;
-    TIM_TimeBaseStructure.TIM_CounterMode = TIM_CounterMode_Up;
     TIM_TimeBaseStructure.TIM_Period = TIM1_PERIOD - 1;
-    TIM_TimeBaseStructure.TIM_ClockDivision = 0;
-    TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
-
     TIM_TimeBaseInit(TIM1, &TIM_TimeBaseStructure);
 
     // Enable TIM1 PWM
