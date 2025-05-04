@@ -248,9 +248,6 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
                                             &custom_color // RGB color
         );
         break;
-    case ANIMATION_OPTION_FIRE:
-        animation_id = fire_animation_setup(status_leds_buffer);
-        break;
     case ANIMATION_OPTION_FLOATWHEEL_CLASSIC:
         animation_id = scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_FILL,
                                             COLOR_MODE_RGB,

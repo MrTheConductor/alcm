@@ -97,13 +97,6 @@ typedef struct
     animation_callback_t callback;
 } fade_animation_t;
 
-typedef struct
-{
-    status_leds_color_t *buffer;
-    uint8_t heat[STATUS_LEDS_COUNT];
-    uint8_t prng_state;
-} fire_animation_t;
-
 /**
  * @brief Union to represent the animation configuration
  *
@@ -114,7 +107,6 @@ typedef union {
     scan_animation_t scan;
     fill_animation_t fill;
     fade_animation_t fade;
-    fire_animation_t fire;
 } animation_config_t;
 
 typedef void (*animation_tick_t)(uint32_t tick);
@@ -706,70 +698,6 @@ void fade_animation_tick(uint32_t tick)
 }
 
 /**
- * @brief Ticks the fire animation
- */
-void fire_animation_tick(uint32_t tick)
-{
-    animation_config.fire.prng_state = (animation_config.fire.prng_state ^ tick) % 256;
-
-    // Update the fire animation
-    for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
-    {
-        // Cool down every LED a little
-        animation_config.fire.heat[i] = qsub8(animation_config.fire.heat[i],
-                                              prng(&animation_config.fire.prng_state, 0, 22) + 2);
-    }
-
-    // Heat from each cell drifts 'up' and diffuses a little
-    for (uint8_t i = STATUS_LEDS_COUNT - 1; i >= 2; i--)
-    {
-        animation_config.fire.heat[i] =
-            (animation_config.fire.heat[i - 1] + animation_config.fire.heat[i - 2] +
-             animation_config.fire.heat[i - 2]) /
-            3;
-    }
-
-    // Add sparking
-    if (prng(&animation_config.fire.prng_state, 0, 255) < 45)
-    {
-        uint8_t y = prng(&animation_config.fire.prng_state, 0, 1);
-        animation_config.fire.heat[y] =
-            qadd8(animation_config.fire.heat[y], prng(&animation_config.fire.prng_state, 160, 255));
-    }
-
-    for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
-    {
-        // Map from heat to LED colors
-        uint8_t t192 = scale8(animation_config.fire.heat[i], 192);
-        uint8_t heatramp = t192 & 0x3F; // 0..63
-        heatramp <<= 2;                 // scale up to 0..252
-
-        if (t192 & 0x80)
-        {
-            animation_config.fire.buffer[i].r = 200;
-            animation_config.fire.buffer[i].g = 200;
-            animation_config.fire.buffer[i].b = heatramp / 3;
-        }
-        else if (t192 & 0x40)
-        {
-            animation_config.fire.buffer[i].r = 255;
-            animation_config.fire.buffer[i].g = heatramp;
-            animation_config.fire.buffer[i].b = 0;
-        }
-        else
-        {
-            // just the heatramp
-            animation_config.fire.buffer[i].r = heatramp;
-            animation_config.fire.buffer[i].g = 0;
-            animation_config.fire.buffer[i].b = 0;
-        }
-    }
-
-    // Refresh the LEDs
-    status_leds_refresh();
-}
-
-/**
  * @brief Initializes the scan animation with the specified parameters.
  */
 uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
@@ -886,21 +814,6 @@ uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
     animation_config.fade.callback = callback;
 
     animation_start(fade_animation_tick);
-
-    // Return the animation ID
-    return animation_id++;
-}
-
-uint16_t fire_animation_setup(status_leds_color_t *buffer)
-{
-    animation_config.fire.buffer = buffer;
-    animation_config.fire.prng_state = 123;
-    for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
-    {
-        animation_config.fire.heat[i] = 0;
-    }
-
-    animation_start(fire_animation_tick);
 
     // Return the animation ID
     return animation_id++;

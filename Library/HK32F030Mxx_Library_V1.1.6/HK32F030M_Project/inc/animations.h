@@ -180,20 +180,6 @@ uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
                               animation_callback_t callback);
 
 /**
- * @brief Sets up the fire animation on the status LEDs.
- * 
- * This function initializes the fire animation by configuring the provided
- * buffer with the necessary color data for the status LEDs.
- * 
- * @param buffer Pointer to a buffer of type `status_leds_color_t` where the
- *               animation color data will be stored.
- * 
- * @return A 16-bit unsigned integer indicating the result of the setup process.
- *         The specific meaning of the return value depends on the implementation.
- */
-uint16_t fire_animation_setup(status_leds_color_t *buffer);
-
-/**
  * @brief Stop the current animation.
  *
  * This function stops any currently running animation and resets the animation
