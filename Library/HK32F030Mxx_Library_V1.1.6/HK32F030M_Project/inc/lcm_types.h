@@ -23,6 +23,7 @@ typedef enum
 } lcm_status_t;
 
 typedef float float32_t;
+typedef float float16_t;
 typedef _Bool bool_t;
 
 #endif
