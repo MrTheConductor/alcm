@@ -19,9 +19,6 @@
 #include "headlights_hw.h"
 #include "hk32f030m.h"
 
-static uint16_t headlights_hw_brightness = 0U;
-static bool headlights_hw_enabled = false;
-
 /**
  * @brief Initializes the headlights hardware module.
  *
@@ -130,7 +127,6 @@ void headlights_hw_set_direction(headlights_direction_t direction)
  * @return The current direction of the headlights as a value of
  *         headlights_direction_t.
  */
-
 headlights_direction_t headlights_hw_get_direction(void)
 {
     if (GPIOC->ODR & GPIO_Pin_6)
@@ -170,45 +166,5 @@ void headlights_hw_set_brightness(uint16_t brightness)
     }
 
     compareValue = (brightness * TIM1_PERIOD) / TIM1_PERIOD;
-
-    // Set the brightness if enabled
-    if (headlights_hw_enabled)
-    {
-        TIM_SetCompare2(TIM1, compareValue);
-    }
-
-    // Store the new brightness
-    headlights_hw_brightness = brightness;
-}
-
-uint16_t headlights_hw_get_brightness(void)
-{
-    return headlights_hw_brightness;
-}
-
-/**
- * @brief Enables or disables the headlights hardware.
- *
- * This function sets the enabled state of the headlights. When enabled, it
- * sets the PWM compare value to adjust the brightness to the current level.
- * When disabled, it sets the compare value to zero, effectively turning off
- * the headlights.
- *
- * @param enable A boolean value indicating whether to enable (true) or
- * disable (false) the headlights.
- */
-
-void headlights_hw_enable(bool enable)
-{
-    headlights_hw_enabled = enable;
-
-    if (enable)
-    {
-        uint32_t compareValue = (headlights_hw_brightness * TIM1_PERIOD) / TIM1_PERIOD;
-        TIM_SetCompare2(TIM1, compareValue);
-    }
-    else
-    {
-        TIM_SetCompare2(TIM1, 0U);
-    }
+    TIM_SetCompare2(TIM1, compareValue);
 }

@@ -51,7 +51,6 @@ int headlights_setup(void **state)
     settings->headlight_brightness = 1.0f;
 
     expect_function_call(headlights_hw_init);
-    expect_value(headlights_hw_enable, enable, true);
     expect_value(headlights_hw_set_direction, direction, HEADLIGHTS_DIRECTION_NONE);
     expect_value(subscribe_event, event, EVENT_BOARD_MODE_CHANGED);
     expect_any(subscribe_event, callback);
@@ -85,7 +84,6 @@ void test_headlights_boot(void **state)
 
     // Add mocks
     will_return(board_mode_get, BOARD_MODE_BOOTING);
-    will_return(headlights_hw_get_direction, HEADLIGHTS_DIRECTION_FORWARD);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 }
@@ -105,26 +103,8 @@ void test_headlights_riding(void **state)
 
     // Add mocks
     will_return(board_mode_get, BOARD_MODE_RIDING);
-    will_return(headlights_hw_get_direction, HEADLIGHTS_DIRECTION_FORWARD);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
-
-    // Simulate forward movement
-    will_return(vesc_serial_get_rpm, 1000);
-    will_return(headlights_hw_get_direction, HEADLIGHTS_DIRECTION_FORWARD);
-    event_queue_call_mocked_callback(EVENT_RPM_CHANGED, &data);
-
-    // Simulate change in direction
-    will_return(vesc_serial_get_rpm, -1000);
-    will_return(headlights_hw_get_direction, HEADLIGHTS_DIRECTION_FORWARD);
-    will_return(headlights_hw_get_brightness, 1000);
-
-    // Expect a timer to be set for transition
-    expect_any(set_timer, timeout);
-    expect_any(set_timer, callback);
-    expect_any(set_timer, repeat);
-
-    event_queue_call_mocked_callback(EVENT_RPM_CHANGED, &data);
 }
 
 void test_headlights_idle_active(void **state)
@@ -143,7 +123,6 @@ void test_headlights_idle_active(void **state)
     // Add mocks
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_ACTIVE);
-    will_return(headlights_hw_get_direction, HEADLIGHTS_DIRECTION_FORWARD);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 }
@@ -159,7 +138,9 @@ void test_headlights_idle_default(void **state)
     // Add mocks
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_DEFAULT);
-    will_return(headlights_hw_get_brightness, HEADLIGHTS_HW_MAX_BRIGHTNESS);
+
+    // Expect set brightness
+    expect_any(headlights_hw_set_brightness, brightness);
 
     // Expect animation timer
     expect_any(set_timer, timeout);
