@@ -52,6 +52,14 @@
 #define MAX_SUBSCRIPTIONS 32U // Maximum number of event subscribers
 #define MAX_TIMERS 8U         // Maximum number of system timers
 
+// Headlights configuration
+#define HEADLIGHTS_ENABLE_DOZING 1          // Enable dozing animation for headlights
+#define HEADLIGHTS_ENABLE_SHUTTING_DOWN 1   // Enable shutting down animation for headlights 
+#define SLOW_BREATH_PERIOD 4000U            // How fast to "breathe" headlights when dozing (ms)
+#define FAST_BREATH_PERIOD 500U             // How fast to flash headlights (ms)
+#define FADE_PERIOD 500U                    // How long to fade out headlights on disable (ms) 
+#define RPM_HYSTERISIS 40.0f                // How many ERPMs (+/-) to allow before changing direction
+
 // Status LEDs configuration
 #define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down
 #define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
@@ -64,6 +72,6 @@
 
 // DEBUG
 #undef UART_DEBUG
-#undef MANUAL_HSI_TRIMMING 
+#define MANUAL_HSI_TRIMMING 1
 
 #endif

@@ -152,18 +152,18 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>0</LineNumber>
+          <LineNumber>169</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134219594</Address>
+          <Address>134224384</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>1</BreakIfRCount>
-          <Filename></Filename>
+          <Filename>..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M_Project\src\headlights.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>0x0800074A</Expression>
+          <Expression>\\ALCM\../../Library/HK32F030Mxx_Library_V1.1.6/HK32F030M_Project/src/headlights.c\169</Expression>
         </Bp>
       </Breakpoint>
       <WatchWindow1>
@@ -192,7 +192,25 @@
           <WinNumber>1</WinNumber>
           <ItemText>right</ItemText>
         </Ww>
+        <Ww>
+          <count>5</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>comm_get_imu_data</ItemText>
+        </Ww>
+        <Ww>
+          <count>6</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>comm_get_values_setup_selective</ItemText>
+        </Ww>
       </WatchWindow1>
+      <MemoryWindow1>
+        <Mm>
+          <WinNumber>1</WinNumber>
+          <SubType>0</SubType>
+          <ItemText>0x200006c0</ItemText>
+          <AccSizeX>0</AccSizeX>
+        </Mm>
+      </MemoryWindow1>
       <Tracepoint>
         <THDelay>0</THDelay>
       </Tracepoint>
@@ -640,7 +658,7 @@
 
   <Group>
     <GroupName>lib</GroupName>
-    <tvExp>0</tvExp>
+    <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>

@@ -22,6 +22,7 @@
         "xutility": "c",
         "stdint.h": "c",
         "stddef.h": "c",
-        "footpads.h": "c"
+        "footpads.h": "c",
+        "function_generator.h": "c"
     }
 }
