@@ -24,5 +24,6 @@
         "stddef.h": "c",
         "footpads.h": "c",
         "function_generator.h": "c"
+        "headlights_hw.h": "c"
     }
 }

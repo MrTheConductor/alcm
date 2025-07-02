@@ -21,18 +21,7 @@
 
 #include "ring_buffer.h"
 #include "lcm_types.h"
-
-// There's a couple ways to get the battery level:
-// 1. Read the input voltage and calculate a value based on
-//    the number and type of cells installed.
-// 2. Read the battery level directly from the VESC based
-//    on their calculations.
-//
-// The first method is more accurate, but it requires
-// programming the number of cells and battery curve into
-// the firmware. The second method is less accurate, but
-// requires no modification from board to board.
-#undef ENABLE_INPUT_VOLTAGE
+#include "config.h"
 
 /**
  * @brief VESC serial callback function type
@@ -45,11 +34,15 @@ ring_buffer_t *vesc_serial_get_rx_buffer(void);
 // Getters for the VESC serial data
 float32_t vesc_serial_get_duty_cycle(void);
 int32_t vesc_serial_get_rpm(void);
-#if defined(ENABLE_INPUT_VOLTAGE)
+#if defined(ENABLE_VOLTAGE_MONITORING)
 float32_t vesc_serial_get_input_voltage(void);
 #endif
 float32_t vesc_serial_get_battery_level(void);
 uint8_t vesc_serial_get_fault(void);
 lcm_status_t vesc_serial_check_busy_and_set_callback(vesc_serial_callback_t callback);
+#if defined(ENABLE_IMU_EVENTS)
+float32_t vesc_serial_get_imu_pitch(void);
+float32_t vesc_serial_get_imu_roll(void);
+#endif
 
 #endif

@@ -74,7 +74,9 @@ lcm_status_t system_init(void)
 #endif // ENABLE_BUZZER
     INIT(headlights);
     INIT(footpads);
+#ifdef ENABLE_STATUS_LEDS
     INIT(status_leds);
+#endif
     INIT(vesc_serial);
 
     return status;

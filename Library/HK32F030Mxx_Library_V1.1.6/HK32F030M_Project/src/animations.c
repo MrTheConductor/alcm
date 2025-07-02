@@ -97,12 +97,14 @@ typedef struct
     animation_callback_t callback;
 } fade_animation_t;
 
+#ifdef ENABLE_FIRE_ANIMATION
 typedef struct
 {
     status_leds_color_t *buffer;
     uint8_t heat[STATUS_LEDS_COUNT];
     uint8_t prng_state;
 } fire_animation_t;
+#endif
 
 /**
  * @brief Union to represent the animation configuration
@@ -114,7 +116,9 @@ typedef union {
     scan_animation_t scan;
     fill_animation_t fill;
     fade_animation_t fade;
+#ifdef ENABLE_FIRE_ANIMATION
     fire_animation_t fire;
+#endif
 } animation_config_t;
 
 typedef void (*animation_tick_t)(uint32_t tick);
@@ -705,6 +709,7 @@ void fade_animation_tick(uint32_t tick)
     }
 }
 
+#ifdef ENABLE_FIRE_ANIMATION
 /**
  * @brief Ticks the fire animation
  */
@@ -768,6 +773,7 @@ void fire_animation_tick(uint32_t tick)
     // Refresh the LEDs
     status_leds_refresh();
 }
+#endif
 
 /**
  * @brief Initializes the scan animation with the specified parameters.
@@ -891,6 +897,7 @@ uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
     return animation_id++;
 }
 
+#ifdef ENABLE_FIRE_ANIMATION
 uint16_t fire_animation_setup(status_leds_color_t *buffer)
 {
     animation_config.fire.buffer = buffer;
@@ -905,6 +912,7 @@ uint16_t fire_animation_setup(status_leds_color_t *buffer)
     // Return the animation ID
     return animation_id++;
 }
+#endif
 
 /**
  * @brief Handle the timer tick for the animations.

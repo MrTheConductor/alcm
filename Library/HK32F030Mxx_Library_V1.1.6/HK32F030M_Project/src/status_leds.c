@@ -136,6 +136,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
                                  NULL // RGB color (ignored)
             );
         break;
+#ifdef ENABLE_KNIGHT_RIDER_ANIMATION
     case ANIMATION_OPTION_KNIGHT_RIDER:
         animation_id = scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_SINE, COLOR_MODE_RGB,
                                             2000.0f, // scan speed in milliseconds
@@ -147,6 +148,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
                                             &colors.red // RGB color
         );
         break;
+#endif
     case ANIMATION_OPTION_RAINBOW_MIRROR:
         animation_id = fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_INCREASE,
                                             BRIGHTNESS_MODE_STATIC, FILL_MODE_HSV_GRADIENT_MIRROR,
@@ -161,6 +163,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
                                             NULL // RGB color (ignored)
         );
         break;
+#ifdef ENABLE_EXPANDING_PULSE_ANIMATION
     case ANIMATION_OPTION_EXPANDING_PULSE:
         animation_id = scan_animation_setup(
             status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_MIRROR, COLOR_MODE_HSV_SINE,
@@ -170,6 +173,8 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
             CLAMP(status_leds_settings->personal_color + 15.0f, 0.0f, 360.0f), // hue max
             3000.0f, SCAN_START_DEFAULT, SCAN_END_NEVER, 0.0f, NULL);
         break;
+#endif
+#ifdef ENABLE_THE_FUZZ_ANIMATION
     case ANIMATION_OPTION_THE_FUZZ:
         animation_id = fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_SQUARE,
                                             BRIGHTNESS_MODE_SEQUENCE, FILL_MODE_SOLID, 0U,
@@ -184,6 +189,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
                                             NULL     // RGB color (ignored)
         );
         break;
+#endif
     case ANIMATION_OPTION_120_SCROLL:
         animation_id = fill_animation_setup(
             status_leds_buffer, COLOR_MODE_HSV_INCREASE, BRIGHTNESS_MODE_STATIC,
@@ -198,6 +204,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
             NULL // RGB color (ignored)
         );
         break;
+#ifdef ENABLE_IMPLODING_PULSE_ANIMATION
     case ANIMATION_OPTION_IMPLODING_PULSE:
         animation_id = scan_animation_setup(
             status_leds_buffer, SCAN_DIRECTION_RIGHT_TO_LEFT_MIRROR, COLOR_MODE_HSV_SINE,
@@ -207,6 +214,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
             CLAMP(status_leds_settings->personal_color + 15.0f, 0.0f, 360.0f), // hue max
             3000.0f, SCAN_START_DEFAULT, SCAN_END_NEVER, 0.0f, NULL);
         break;
+#endif
     case ANIMATION_OPTION_RAINBOW_BAR:
         animation_id = fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_INCREASE,
                                             BRIGHTNESS_MODE_STATIC, FILL_MODE_HSV_GRADIENT, 0U,
@@ -248,9 +256,11 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
                                             &custom_color // RGB color
         );
         break;
+#ifdef ENABLE_FIRE_ANIMATION
     case ANIMATION_OPTION_FIRE:
         animation_id = fire_animation_setup(status_leds_buffer);
         break;
+#endif
     case ANIMATION_OPTION_FLOATWHEEL_CLASSIC:
         animation_id = scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_FILL,
                                             COLOR_MODE_RGB,

@@ -179,6 +179,7 @@ uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mo
 uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
                               animation_callback_t callback);
 
+#ifdef ENABLE_FIRE_ANIMATION
 /**
  * @brief Sets up the fire animation on the status LEDs.
  * 
@@ -192,6 +193,7 @@ uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
  *         The specific meaning of the return value depends on the implementation.
  */
 uint16_t fire_animation_setup(status_leds_color_t *buffer);
+#endif
 
 /**
  * @brief Stop the current animation.

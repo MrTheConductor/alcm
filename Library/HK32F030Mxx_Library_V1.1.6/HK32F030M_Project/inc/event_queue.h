@@ -80,6 +80,10 @@ typedef enum
     EVENT_VOLTAGE_CHANGED,
     EVENT_BATTERY_LEVEL_CHANGED,
     EVENT_VESC_ALIVE,
+    
+    // IMU events
+    EVENT_IMU_PITCH_CHANGED,
+    EVENT_IMU_ROLL_CHANGED,
 
     // Command events
     EVENT_COMMAND_CONTEXT_CHANGED,
@@ -139,6 +143,8 @@ typedef union {
     uint8_t click_count;
     command_processor_context_t context;
     bool_t enable;
+    float32_t imu_pitch;
+    float32_t imu_roll;
 } event_data_t;
 
 /**
