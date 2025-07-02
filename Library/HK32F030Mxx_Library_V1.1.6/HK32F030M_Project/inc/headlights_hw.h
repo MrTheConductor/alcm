@@ -45,19 +45,6 @@ typedef enum
 void headlights_hw_init(void);
 
 /**
- * @brief Enables or disables the headlights hardware.
- *
- * This function controls the state of the headlights hardware by enabling
- * or disabling it based on the input parameter.
- *
- * @param enable A boolean value indicating whether to enable or disable
- *               the headlights hardware.
- *               - true: Enable the headlights hardware.
- *               - false: Disable the headlights hardware.
- */
-void headlights_hw_enable(bool);
-
-/**
  * @brief Sets the direction of the headlights.
  *
  * This function configures the direction of the headlights based on the
@@ -89,15 +76,5 @@ headlights_direction_t headlights_hw_get_direction(void);
  *
  */
 void headlights_hw_set_brightness(uint16_t brightness);
-
-/**
- * @brief Retrieves the current brightness level of the headlights.
- *
- * This function returns the current brightness level of the headlights.
- *
- * @return uint16_t The current brightness level, ranging from 0 (off) to the maximum value
- * supported by the hardware.
- */
-uint16_t headlights_hw_get_brightness(void);
 
 #endif
