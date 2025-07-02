@@ -59,6 +59,7 @@
 #define FAST_BREATH_PERIOD 500U             // How fast to flash headlights (ms)
 #define FADE_PERIOD 500U                    // How long to fade out headlights on disable (ms) 
 #define RPM_HYSTERISIS 40.0f                // How many ERPMs (+/-) to allow before changing direction
+#define HEADLIGHTS_IDLE_BRIGHTNESS 0.20f    // Brightness of headlights when idle (0.0 to 1.0) 
 
 // Status LEDs configuration
 #define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down

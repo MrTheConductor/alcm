@@ -225,7 +225,7 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 FUNCTION_GENERATOR_SAWTOOTH,
                                 FADE_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
-                                0.25f,
+                                HEADLIGHTS_IDLE_BRIGHTNESS,
                                 1.0f,
                                 FG_FLAG_INVERT,
                                 0U);
@@ -238,7 +238,7 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 SLOW_BREATH_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
                                 0.0f,
-                                1.0f,
+                                HEADLIGHTS_IDLE_BRIGHTNESS,
                                 FG_FLAG_REPEAT,
                                 0U);
         break;
