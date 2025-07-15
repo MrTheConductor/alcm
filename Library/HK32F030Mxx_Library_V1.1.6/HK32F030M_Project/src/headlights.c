@@ -66,7 +66,9 @@ static hysteresis_t headlights_rpm_hys;
 
 // Control factors
 float enable_control = 1.0f; // Enable control factor
+#ifdef ENABLE_IMU_EVENTS
 float pitch_control = 1.0f; // Pitch control factor
+#endif
 float mode_control = 1.0f;  // Mode control factor
 float direction_control = 1.0f; // Direction control factor
 
@@ -117,6 +119,9 @@ lcm_status_t headlights_init(void)
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_TOGGLE_LIGHTS, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_CONTEXT_CHANGED, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_SETTINGS_CHANGED, state_change);
+#ifdef ENABLE_IMU_EVENTS
+        SUBSCRIBE_EVENT(headlights, EVENT_IMU_PITCH_CHANGED, state_change);
+#endif
     }
 
     return status;
@@ -237,7 +242,7 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 FUNCTION_GENERATOR_SINE,
                                 SLOW_BREATH_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
-                                0.0f,
+                                0.05f,
                                 HEADLIGHTS_IDLE_BRIGHTNESS,
                                 FG_FLAG_REPEAT,
                                 0U);
@@ -419,6 +424,18 @@ EVENT_HANDLER(headlights, state_change)
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
         }
         break;
+#ifdef ENABLE_IMU_EVENTS
+    case EVENT_IMU_PITCH_CHANGED:
+        // Update the pitch control factor based on the IMU pitch
+        {
+            if (data->imu_pitch >= 60.0f || data->imu_pitch <= -60.0f) {
+                pitch_control = 0.0f;
+            } else {
+                pitch_control = 1.0f;
+            }
+        }
+        break;
+#endif
     default:
         // Nothing to do
         break;
