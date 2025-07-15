@@ -63,7 +63,7 @@
 // Headlights configuration
 #define HEADLIGHTS_ENABLE_DOZING 1          // Enable dozing animation for headlights
 #define HEADLIGHTS_ENABLE_SHUTTING_DOWN 1   // Enable shutting down animation for headlights 
-#define SLOW_BREATH_PERIOD 4000U            // How fast to "breathe" headlights when dozing (ms)
+#define SLOW_BREATH_PERIOD 6000U            // How fast to "breathe" headlights when dozing (ms)
 #define FAST_BREATH_PERIOD 500U             // How fast to flash headlights (ms)
 #define FADE_PERIOD 500U                    // How long to fade out headlights on disable (ms) 
 #define RPM_HYSTERISIS 40.0f                // How many ERPMs (+/-) to allow before changing direction

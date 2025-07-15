@@ -49,7 +49,7 @@
 #define END_BYTE 0x03
 #define MAX_PACKET_LENGTH 32
 #define MAX_OUTSTANDING_PACKETS 5
-#define SIGNIFICANT_CHANGE(x, y) (fabsf((x) - (y)) > 0.01f)
+#define SIGNIFICANT_CHANGE(x, y) (fabsf((x) - (y)) > 0.02f)
 #define RADIANS_TO_DEGREES(radians) ((radians) * (180.0f / M_PI))
 
 typedef struct
