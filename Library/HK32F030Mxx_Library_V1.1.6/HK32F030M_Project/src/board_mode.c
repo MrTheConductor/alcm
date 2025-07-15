@@ -72,6 +72,9 @@ lcm_status_t board_mode_init(void)
     SUBSCRIBE_EVENT(board_mode, EVENT_FOOTPAD_CHANGED, footpad_changed);
     SUBSCRIBE_EVENT(board_mode, EVENT_VESC_ALIVE, vesc_alive);
     SUBSCRIBE_EVENT(board_mode, EVENT_DUTY_CYCLE_CHANGED, duty_cycle_changed);
+#ifdef ENABLE_IMU_EVENTS
+    SUBSCRIBE_EVENT(board_mode, EVENT_IMU_ROLL_CHANGED, command);
+#endif
 
     // Initialize hysteresis values
     if (LCM_SUCCESS != hysteresis_init(&stopped_rpm_hysteresis, STOPPED_RPM_THRESHOLD,
@@ -271,6 +274,24 @@ EVENT_HANDLER(board_mode, command)
             set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
         }
         break;
+#ifdef ENABLE_IMU_EVENTS
+    case EVENT_IMU_ROLL_CHANGED:
+        // If the board is on its side, transition to dozing idle mode
+        if (board_mode == BOARD_MODE_IDLE && 
+            (board_submode == BOARD_SUBMODE_IDLE_ACTIVE || board_submode == BOARD_SUBMODE_IDLE_DEFAULT) &&
+            (data->imu_roll > 45.0f || data->imu_roll < -45.0f))
+        {
+            set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_DOZING);
+        }
+        // Otherwise, if the board is dozing and turned upright, transition to active idle mode
+        else if (board_mode == BOARD_MODE_IDLE && 
+                 board_submode == BOARD_SUBMODE_IDLE_DOZING &&
+                 (data->imu_roll <= 45.0f && data->imu_roll >= -45.0f))
+        {
+            set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
+        } 
+        break;
+#endif // ENABLE_IMU_EVENTS
     default:
         // Unexpected event
         break;
