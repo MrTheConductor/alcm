@@ -121,7 +121,16 @@ lcm_status_t status_leds_init(void)
 uint16_t status_leds_start_animation_option(animation_option_t option)
 {
     uint16_t animation_id = 0U;
+    uint8_t first_led = 0U;
+    uint8_t last_led = STATUS_LEDS_COUNT - 1U;
 
+#ifdef ENABLE_IMU_EVENTS
+        if (vesc_serial_get_imu_roll() < 0.0f)
+        {
+            first_led = STATUS_LEDS_COUNT - 1U;
+            last_led = 0U;
+        }
+#endif
     switch (option)
     {
     case ANIMATION_OPTION_RAINBOW_SCAN:
@@ -193,7 +202,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
     case ANIMATION_OPTION_120_SCROLL:
         animation_id = fill_animation_setup(
             status_leds_buffer, COLOR_MODE_HSV_INCREASE, BRIGHTNESS_MODE_STATIC,
-            FILL_MODE_HSV_GRADIENT, 0U, STATUS_LEDS_COUNT - 1U,
+            FILL_MODE_HSV_GRADIENT, first_led, last_led,
             status_leds_settings->personal_color,                               // hue min
             CLAMP(status_leds_settings->personal_color + 120.0f, 0.0f, 360.0f), // hue max
             2000.0f, // color change speed
@@ -217,8 +226,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
 #endif
     case ANIMATION_OPTION_RAINBOW_BAR:
         animation_id = fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_INCREASE,
-                                            BRIGHTNESS_MODE_STATIC, FILL_MODE_HSV_GRADIENT, 0U,
-                                            STATUS_LEDS_COUNT - 1U,
+                                            BRIGHTNESS_MODE_STATIC, FILL_MODE_HSV_GRADIENT, first_led, last_led,
                                             0.0f,    // hue min
                                             360.0f,  // hue max
                                             1000.0f, // color change speed

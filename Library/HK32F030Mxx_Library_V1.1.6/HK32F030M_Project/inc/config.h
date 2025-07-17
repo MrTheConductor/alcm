@@ -90,7 +90,7 @@
 //
 // Individual animations can be enabled or disable to save code space. 
 #undef ENABLE_FIRE_ANIMATION            // Fire effect animation 
-#undef ENABLE_KNIGHT_RIDER_ANIMATION    // Red "knight rider" animation
+#define ENABLE_KNIGHT_RIDER_ANIMATION 1 // Red "knight rider" animation
 #undef ENABLE_EXPANDING_PULSE_ANIMATION // Expanding pulse animation 
 #undef ENABLE_PULSE_ANIMATION           // Expanding pulse animation 
 #undef ENABLE_THE_FUZZ_ANIMATION        // The Fuzz animation 

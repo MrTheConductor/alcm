@@ -467,38 +467,28 @@ void scale_brightness(status_leds_color_t *color, float brightness)
 void gradient_fill(status_leds_color_t *buffer, color_animation_t *color_animation,
                    uint8_t first_led, uint8_t last_led, float brightness)
 {
+    if (color_animation == NULL || color_animation->mode == COLOR_MODE_RGB)
+    {
+        fault(EMERGENCY_FAULT_NULL_POINTER);
+        return;
+    }
+
     status_leds_color_t color = {0};
     float h = 0.0f;
 
-    // A bit more complex: we need to calculate the hue for each LED
+    int8_t step = (first_led <= last_led) ? 1 : -1;
+    uint8_t count = (first_led <= last_led) ? (last_led - first_led + 1) : (first_led - last_led + 1);
+
     next_color(&color, color_animation);
 
-    for (uint8_t i = first_led; i <= last_led; i++)
+    for (uint8_t idx = 0; idx < count; idx++)
     {
-        switch (color_animation->mode)
+        uint8_t i = first_led + step * idx;
+        if (LCM_SUCCESS != function_generator_peek_sample(&(color_animation->fg), &h, idx))
         {
-        case COLOR_MODE_HSV_SQUARE:
-            // Fall-through intentional
-        case COLOR_MODE_HSV_SINE:
-            // Fall-through intentional
-        case COLOR_MODE_HSV_INCREASE:
-            // Fall-through intentional
-        case COLOR_MODE_HSV_DECREASE:
-
-            if (LCM_SUCCESS !=
-                function_generator_peek_sample(&(color_animation->fg), &h, i - first_led))
-            {
-                // This should never return false unless we forgot
-                // to enable repeating
-                fault(EMERGENCY_FAULT_INVALID_ARGUMENT);
-            }
-            break;
-        case COLOR_MODE_RGB:
-            // Fall-through intentional
-        default:
             fault(EMERGENCY_FAULT_INVALID_ARGUMENT);
-            break;
         }
+
         hsl_to_rgb(h, SATURATION_DEFAULT, LIGHTNESS_DEFAULT, &color);
         scale_brightness(&color, brightness);
 
