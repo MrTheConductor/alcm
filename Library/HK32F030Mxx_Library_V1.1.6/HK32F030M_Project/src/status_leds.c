@@ -136,7 +136,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
     case ANIMATION_OPTION_RAINBOW_SCAN:
         animation_id =
             scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_SINE, COLOR_MODE_HSV_DECREASE,
-                                 1500.0f, // scan speed in milliseconds
+                                 STATUS_LEDS_SCAN_SPEED, // scan speed in milliseconds
                                  SIGMA_DEFAULT,
                                  0.0f,    // hue min
                                  360.0f,  // hue max
@@ -148,7 +148,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
 #ifdef ENABLE_KNIGHT_RIDER_ANIMATION
     case ANIMATION_OPTION_KNIGHT_RIDER:
         animation_id = scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_SINE, COLOR_MODE_RGB,
-                                            2000.0f, // scan speed in milliseconds
+                                            STATUS_LEDS_SCAN_SPEED, // scan speed in milliseconds
                                             SIGMA_DEFAULT,
                                             0.0f, // (not-used)
                                             0.0f, // (not-used)
@@ -176,7 +176,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
     case ANIMATION_OPTION_EXPANDING_PULSE:
         animation_id = scan_animation_setup(
             status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_MIRROR, COLOR_MODE_HSV_SINE,
-            1000.0f, // scan speed in milliseconds
+            STATUS_LEDS_SCAN_SPEED, // scan speed in milliseconds
             SIGMA_DEFAULT,
             status_leds_settings->personal_color,                              // hue min
             CLAMP(status_leds_settings->personal_color + 15.0f, 0.0f, 360.0f), // hue max
@@ -217,7 +217,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
     case ANIMATION_OPTION_IMPLODING_PULSE:
         animation_id = scan_animation_setup(
             status_leds_buffer, SCAN_DIRECTION_RIGHT_TO_LEFT_MIRROR, COLOR_MODE_HSV_SINE,
-            1000.0f, // scan speed in milliseconds
+            STATUS_LEDS_SCAN_SPEED, // scan speed in milliseconds
             SIGMA_DEFAULT,
             status_leds_settings->personal_color,                              // hue min
             CLAMP(status_leds_settings->personal_color + 15.0f, 0.0f, 360.0f), // hue max
@@ -255,7 +255,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
         break;
     case ANIMATION_OPTION_PERSONAL_SCAN:
         animation_id = scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_SINE, COLOR_MODE_RGB,
-                                            2000.0f, // scan speed in milliseconds
+                                            STATUS_LEDS_SCAN_SPEED, // scan speed in milliseconds
                                             SIGMA_DEFAULT,
                                             0.0f, // (not-used)
                                             0.0f, // (not-used)

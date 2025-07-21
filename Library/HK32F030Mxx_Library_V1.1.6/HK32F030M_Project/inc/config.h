@@ -81,6 +81,7 @@
 #define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down
 #define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
 #define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
+#define STATUS_LEDS_SCAN_SPEED (2000U)            // Speed of the scan animation (ms)
 
 //------------------------------------------------------------------------------
 // Animation configuration 
@@ -140,6 +141,6 @@
 //------------------------------------------------------------------------------
 // These should be generally undefined in production builds.
 #undef UART_DEBUG
-#undef MANUAL_HSI_TRIMMING
+#define MANUAL_HSI_TRIMMING 1
 
 #endif

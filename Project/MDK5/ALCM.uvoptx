@@ -180,6 +180,11 @@
           <WinNumber>1</WinNumber>
           <ItemText>comm_get_imu_data</ItemText>
         </Ww>
+        <Ww>
+          <count>6</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>velocity</ItemText>
+        </Ww>
       </WatchWindow1>
       <MemoryWindow1>
         <Mm>
