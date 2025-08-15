@@ -354,6 +354,16 @@ void update_riding_submode()
     float duty_cycle = vesc_serial_get_duty_cycle();
     int32_t rpm = vesc_serial_get_rpm();
 
+#ifdef ENABLE_IMU_EVENTS
+    float imu_pitch = vesc_serial_get_imu_pitch();
+    if (imu_pitch > 45.0f || imu_pitch < -45.0f)
+    {
+        // Don't change the riding submode if the board is on its side, 
+        // it's not possible to ride it in this state
+        return;
+    }
+#endif
+
     // Set the submode based on the duty cycle and RPM
     if (apply_hysteresis(&danger_hysteresis, duty_cycle) == STATE_SET)
     {

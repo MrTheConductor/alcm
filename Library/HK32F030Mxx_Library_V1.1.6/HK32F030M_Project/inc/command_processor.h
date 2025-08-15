@@ -38,7 +38,8 @@ typedef enum
 
     // Count of all non-default contexts
     COMMAND_PROCESSOR_CONTEXT_COUNT,
-    COMMAND_PROCESSOR_CONTEXT_DEFAULT
+    COMMAND_PROCESSOR_CONTEXT_DEFAULT,
+    COMMAND_PROCESSOR_CONTEXT_UNDEFINED
 } command_processor_context_t;
 
 /**

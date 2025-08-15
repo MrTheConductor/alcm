@@ -68,7 +68,7 @@ lcm_status_t command_processor_init(void)
     lcm_status_t status = LCM_SUCCESS;
 
     // Initial context
-    current_context = COMMAND_PROCESSOR_CONTEXT_DEFAULT;
+    current_context = COMMAND_PROCESSOR_CONTEXT_UNDEFINED;
 
     // Get command processor settings
     command_processor_settings = settings_get();
@@ -440,7 +440,12 @@ void command_processor_default_handler(event_type_t event, const event_data_t *d
  */
 EVENT_HANDLER(command_processor, button)
 {
-    if (current_context == COMMAND_PROCESSOR_CONTEXT_DEFAULT)
+    if (current_context == COMMAND_PROCESSOR_CONTEXT_UNDEFINED)
+    {
+        // Not ready yet, ignore events
+        return;
+    }
+    else if (current_context == COMMAND_PROCESSOR_CONTEXT_DEFAULT)
     {
         command_processor_default_handler(event, data);
     }
