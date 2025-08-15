@@ -275,7 +275,7 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
         // Initialize the function generator for flash animation
         function_generator_init(&headlights_mode_fg,
                                 FUNCTION_GENERATOR_SQUARE,
-                                FADE_PERIOD/2U,
+                                FADE_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
                                 0.0f,
                                 1.0f,

@@ -68,7 +68,7 @@ lcm_status_t command_processor_init(void)
     lcm_status_t status = LCM_SUCCESS;
 
     // Initial context
-    current_context = COMMAND_PROCESSOR_CONTEXT_UNDEFINED;
+    current_context = COMMAND_PROCESSOR_CONTEXT_DEFAULT;
 
     // Get command processor settings
     command_processor_settings = settings_get();
@@ -440,9 +440,10 @@ void command_processor_default_handler(event_type_t event, const event_data_t *d
  */
 EVENT_HANDLER(command_processor, button)
 {
-    if (current_context == COMMAND_PROCESSOR_CONTEXT_UNDEFINED)
+    // Ignore events if the board is booting - this should probably
+    // be it's own context
+    if (board_mode_get() == BOARD_MODE_BOOTING)
     {
-        // Not ready yet, ignore events
         return;
     }
     else if (current_context == COMMAND_PROCESSOR_CONTEXT_DEFAULT)
@@ -475,4 +476,5 @@ EVENT_HANDLER(command_processor, board_mode)
         event_queue_push(EVENT_COMMAND_ACK, NULL);
         command_processor_set_context((command_processor_context_t)0); // The first context
     }
+    // No else needed, ignore any other events
 }

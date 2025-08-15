@@ -308,7 +308,7 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
         data.imu_pitch = RADIANS_TO_DEGREES(imu_data.pitch);
         event_queue_push(EVENT_IMU_PITCH_CHANGED, &data);
 
-        comm_get_imu_data.pitch = imu_data.pitch;
+        comm_get_imu_data.pitch = data.imu_pitch;
     }
 
     if SIGNIFICANT_CHANGE(imu_data.roll, comm_get_imu_data.roll)
@@ -317,7 +317,7 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
         data.imu_roll = RADIANS_TO_DEGREES(imu_data.roll);
         event_queue_push(EVENT_IMU_ROLL_CHANGED, &data);
 
-        comm_get_imu_data.roll = imu_data.roll;
+        comm_get_imu_data.roll = data.imu_roll;
     }
 }
 #endif
@@ -696,7 +696,7 @@ uint8_t vesc_serial_get_fault(void)
  */
 float32_t vesc_serial_get_imu_pitch(void)
 {
-    return RADIANS_TO_DEGREES(comm_get_imu_data.pitch);
+    return comm_get_imu_data.pitch;
 }
 
 /**
@@ -706,6 +706,6 @@ float32_t vesc_serial_get_imu_pitch(void)
  */
 float32_t vesc_serial_get_imu_roll(void)
 {
-    return RADIANS_TO_DEGREES(comm_get_imu_data.roll);
+    return comm_get_imu_data.roll;
 }
 #endif

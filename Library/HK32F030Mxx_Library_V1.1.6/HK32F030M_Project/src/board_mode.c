@@ -355,8 +355,8 @@ void update_riding_submode()
     int32_t rpm = vesc_serial_get_rpm();
 
 #ifdef ENABLE_IMU_EVENTS
-    float imu_pitch = vesc_serial_get_imu_pitch();
-    if (imu_pitch > 45.0f || imu_pitch < -45.0f)
+    float imu_roll = vesc_serial_get_imu_roll();
+    if (imu_roll > 45.0f || imu_roll < -45.0f)
     {
         // Don't change the riding submode if the board is on its side, 
         // it's not possible to ride it in this state
