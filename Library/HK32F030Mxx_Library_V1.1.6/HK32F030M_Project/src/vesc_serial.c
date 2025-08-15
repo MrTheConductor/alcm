@@ -359,32 +359,19 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     // struct
     values.duty_cycle = buffer_get_float16(&payload[5], 10.0f);
 
-    // Sanity check the duty cycle
-    if (values.duty_cycle < -100.0f || values.duty_cycle > 100.0f)
-    {
-        fault(EMERGENCY_FAULT_OUT_OF_BOUNDS);
-        return;
-    }
+    // Coerce the duty cycle to a valid range
+    CLAMP(values.duty_cycle, -100.0f, 100.0f);
 
     values.rpm = buffer_get_float32(&payload[7], 1.0f);
 
-    // Sanity check the RPM (approximately 50 MPH for a 30 pole motor)
-    if (values.rpm < -25000 || values.rpm > 25000)
-    {
-        fault(EMERGENCY_FAULT_OUT_OF_BOUNDS);
-        return;
-    }
 #if defined(ENABLE_VOLTAGE_MONITORING)
     values.input_voltage = buffer_get_float16(&payload[11], 10.0f);
 #endif
     values.battery_level = buffer_get_float16(&payload[13], 10.0f);
 
-    // Sanity check the battery level
-    if (values.battery_level < 0.0f || values.battery_level > 100.0f)
-    {
-        fault(EMERGENCY_FAULT_OUT_OF_BOUNDS);
-        return;
-    }
+    // The VESC can return battery levels outside of the 0-100% range,
+    // so we need to coerce it to a valid range.
+    CLAMP(values.battery_level, 0.0f, 100.0f);
 
     values.fault = payload[15];
 
