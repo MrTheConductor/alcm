@@ -98,6 +98,16 @@ lcm_status_t headlights_init(void)
     }
     else
     {
+        // Initialize enable control based on settings
+        if (headlights_settings->enable_headlights)
+        {
+            enable_control = 1.0f;
+        }
+        else
+        {
+            enable_control = 0.0f;
+        }
+
         // Initialize the hardware
         headlights_hw_init();
         headlights_hw_set_direction(HEADLIGHTS_DIRECTION_NONE);
