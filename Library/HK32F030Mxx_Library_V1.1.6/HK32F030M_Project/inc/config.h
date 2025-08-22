@@ -134,7 +134,23 @@
 // dozing idle mode.
 //
 // This can be undefined to save code space if IMU features are not wanted.
-#define ENABLE_IMU_EVENTS 1 // Enable IMU events
+#define ENABLE_VESC_IMU 1 // Enable VESC IMU commnunication
+#define ENABLE_ROLL_EVENTS 1 // Enable roll events
+#define ENABLE_PITCH_EVENTS 1 // Enable pitch events
+
+// ------------------------------------------------------------------------------
+// Refloat support
+// ------------------------------------------------------------------------------
+// Refloat (formerly Float package) is a VESC package that adds allows some
+// app based control of the LCM.
+#undef ENABLE_REFLOAT // Enable Refloat support
+
+// Update configuration for Refloat
+#if defined(ENABLE_REFLOAT)
+#undef ENABLE_VESC_IMU        // Refloat has its own IMU handling
+#undef ENABLE_ROLL_EVENTS     // Refloat does not report roll
+#define ENABLE_PITCH_EVENTS 1 // Refloat does report pitch 
+#endif // ENABLE_REFLOAT
 
 //------------------------------------------------------------------------------
 // Debug configuration

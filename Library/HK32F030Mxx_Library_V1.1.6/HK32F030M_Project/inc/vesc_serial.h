@@ -40,8 +40,10 @@ float32_t vesc_serial_get_input_voltage(void);
 float32_t vesc_serial_get_battery_level(void);
 uint8_t vesc_serial_get_fault(void);
 lcm_status_t vesc_serial_check_busy_and_set_callback(vesc_serial_callback_t callback);
-#if defined(ENABLE_IMU_EVENTS)
+#if defined(ENABLE_PITCH_EVENTS)
 float32_t vesc_serial_get_imu_pitch(void);
+#endif
+#if defined(ENABLE_ROLL_EVENTS)
 float32_t vesc_serial_get_imu_roll(void);
 #endif
 

@@ -72,7 +72,7 @@ lcm_status_t board_mode_init(void)
     SUBSCRIBE_EVENT(board_mode, EVENT_FOOTPAD_CHANGED, footpad_changed);
     SUBSCRIBE_EVENT(board_mode, EVENT_VESC_ALIVE, vesc_alive);
     SUBSCRIBE_EVENT(board_mode, EVENT_DUTY_CYCLE_CHANGED, duty_cycle_changed);
-#ifdef ENABLE_IMU_EVENTS
+#ifdef ENABLE_ROLL_EVENTS
     SUBSCRIBE_EVENT(board_mode, EVENT_IMU_ROLL_CHANGED, command);
 #endif
 
@@ -274,7 +274,7 @@ EVENT_HANDLER(board_mode, command)
             set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
         }
         break;
-#ifdef ENABLE_IMU_EVENTS
+#ifdef ENABLE_ROLL_EVENTS
     case EVENT_IMU_ROLL_CHANGED:
         // If the board is on its side, transition to dozing idle mode
         if (board_mode == BOARD_MODE_IDLE && 
@@ -291,7 +291,7 @@ EVENT_HANDLER(board_mode, command)
             set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
         } 
         break;
-#endif // ENABLE_IMU_EVENTS
+#endif // ENABLE_ROLL_EVENTS
     default:
         // Unexpected event
         break;
@@ -354,7 +354,7 @@ void update_riding_submode()
     float duty_cycle = vesc_serial_get_duty_cycle();
     int32_t rpm = vesc_serial_get_rpm();
 
-#ifdef ENABLE_IMU_EVENTS
+#ifdef ENABLE_ROLL_EVENTS
     float imu_roll = vesc_serial_get_imu_roll();
     if (imu_roll > 45.0f || imu_roll < -45.0f)
     {

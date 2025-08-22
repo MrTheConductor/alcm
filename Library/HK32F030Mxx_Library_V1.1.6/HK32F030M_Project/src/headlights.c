@@ -66,7 +66,7 @@ static hysteresis_t headlights_rpm_hys;
 
 // Control factors
 float enable_control = 1.0f; // Enable control factor
-#ifdef ENABLE_IMU_EVENTS
+#ifdef ENABLE_PITCH_EVENTS
 float pitch_control = 1.0f; // Pitch control factor
 #endif
 float mode_control = 1.0f;  // Mode control factor
@@ -129,7 +129,7 @@ lcm_status_t headlights_init(void)
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_TOGGLE_LIGHTS, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_CONTEXT_CHANGED, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_SETTINGS_CHANGED, state_change);
-#ifdef ENABLE_IMU_EVENTS
+#ifdef ENABLE_PITCH_EVENTS
         SUBSCRIBE_EVENT(headlights, EVENT_IMU_PITCH_CHANGED, state_change);
 #endif
     }
@@ -143,7 +143,9 @@ void headlights_set_hw_brightness()
     hw_brightness = (uint16_t)
         (headlights_settings->headlight_brightness *
          enable_control *
+#ifdef ENABLE_PITCH_EVENTS
          pitch_control *
+#endif
          mode_control *
          direction_control *
          HEADLIGHTS_HW_MAX_BRIGHTNESS
@@ -434,7 +436,7 @@ EVENT_HANDLER(headlights, state_change)
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
         }
         break;
-#ifdef ENABLE_IMU_EVENTS
+#ifdef ENABLE_PITCH_EVENTS
     case EVENT_IMU_PITCH_CHANGED:
         // Update the pitch control factor based on the IMU pitch
         {

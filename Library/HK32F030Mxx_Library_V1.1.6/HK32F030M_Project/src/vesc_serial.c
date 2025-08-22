@@ -32,7 +32,7 @@
 #define COMM_GET_VALUES_SETUP_SELECTIVE_RESPONSE_LENGTH 16
 #define COMM_GET_VALUES_SETUP_SELECTIVE_MASK 0x101b0
 
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_VESC_IMU)
 #define COMM_GET_IMU_DATA 65
 #define COMM_GET_IMU_DATA_RESPONSE_LENGTH 12 
 #define COMM_GET_IMU_DATA_MASK 0x03 
@@ -63,11 +63,15 @@ typedef struct
     uint8_t fault;
 } comm_get_values_setup_selective_t;
 
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_PITCH_EVENTS) || defined(ENABLE_ROLL_EVENTS)
 typedef struct
 {
+#if defined(ENABLE_PITCH_EVENTS)
     float32_t pitch;
+#endif
+#if defined(ENABLE_ROLL_EVENTS)
     float32_t roll;
+#endif
 } comm_get_imu_data_t;
 #endif
 
@@ -78,7 +82,7 @@ static comm_get_values_setup_selective_t comm_get_values_setup_selective = {0};
 static bool_t vesc_alive = false;
 static uint8_t vesc_serial_outstaning_packet_count = 0;
 static vesc_serial_callback_t vesc_serial_callback = NULL;
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_ROLL_EVENTS) || defined(ENABLE_PITCH_EVENTS)
 static comm_get_imu_data_t comm_get_imu_data = {0};
 #endif
 
@@ -106,7 +110,7 @@ lcm_status_t vesc_serial_init(void)
 
     // Initialize local data structures 
     memset(&comm_get_values_setup_selective, 0, sizeof(comm_get_values_setup_selective));
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_ROLL_EVENTS) || defined(ENABLE_PITCH_EVENTS)
     memset(&comm_get_imu_data, 0, sizeof(comm_get_imu_data));
 #endif
 
@@ -263,7 +267,7 @@ float32_t buffer_get_float32_auto(const uint8_t *buffer)
     return (float32_t)u.f;
 }
 
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_VESC_IMU)
 /**
  * @brief Processes a COMM_GET_IMU_DATA packet
  *
@@ -298,7 +302,7 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
     }
 
     // Copy the payload into the temporary comm_get_imu_data struct
-    imu_data.roll = buffer_get_float32_auto(&payload[3]);
+#if defined(ENABLE_PITCH_EVENTS)
     imu_data.pitch = buffer_get_float32_auto(&payload[7]);
 
     // For each field, check if the value has changed
@@ -310,7 +314,9 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
 
         comm_get_imu_data.pitch = data.imu_pitch;
     }
-
+#endif
+#if defined(ENABLE_ROLL_EVENTS)
+    imu_data.roll = buffer_get_float32_auto(&payload[3]);
     if SIGNIFICANT_CHANGE(imu_data.roll, comm_get_imu_data.roll)
     {
         event_data_t data = {0};
@@ -319,6 +325,7 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
 
         comm_get_imu_data.roll = data.imu_roll;
     }
+#endif
 }
 #endif
 
@@ -445,7 +452,7 @@ void process_packet(uint8_t *payload, uint8_t packet_length)
     case COMM_GET_VALUES_SETUP_SELECTIVE:
         process_comm_get_values_setup_selective(payload, packet_length);
         break;
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_VESC_IMU)
     case COMM_GET_IMU_DATA:
         process_comm_get_imu_data(payload, packet_length);
         break;
@@ -604,7 +611,7 @@ TIMER_CALLBACK(vesc_serial, tx)
      * bytes 15-16 precomputed crc-16-ccitt (0x1afe)
      * byte 17: end byte (0x03)
      */
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_VESC_IMU)
 #define BYTE_LENGTH 18U
     uint8_t buffer[BYTE_LENGTH] = {
         0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
@@ -688,7 +695,7 @@ uint8_t vesc_serial_get_fault(void)
     return comm_get_values_setup_selective.fault;
 }
 
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_PITCH_EVENTS)
 /**
  * @brief Returns the current pitch of the VESC IMU in degrees
  *
@@ -698,7 +705,9 @@ float32_t vesc_serial_get_imu_pitch(void)
 {
     return comm_get_imu_data.pitch;
 }
+#endif
 
+#if defined(ENABLE_ROLL_EVENTS)
 /**
  * @brief Returns the current roll of the VESC IMU in degrees
  *

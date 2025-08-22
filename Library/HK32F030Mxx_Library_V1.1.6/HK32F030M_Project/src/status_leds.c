@@ -124,7 +124,7 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
     uint8_t first_led = 0U;
     uint8_t last_led = STATUS_LEDS_COUNT - 1U;
 
-#ifdef ENABLE_IMU_EVENTS
+#ifdef ENABLE_ROLL_EVENTS
         if (vesc_serial_get_imu_roll() < 0.0f)
         {
             first_led = STATUS_LEDS_COUNT - 1U;
