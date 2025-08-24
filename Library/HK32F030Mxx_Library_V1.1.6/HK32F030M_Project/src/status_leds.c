@@ -911,6 +911,7 @@ EVENT_HANDLER(status_leds, command)
         // LEDs to indicate to the user which context is active
         switch (data->context)
         {
+#if defined(ENABLE_STATUS_LEDS)
         case COMMAND_PROCESSOR_CONTEXT_BOOT_ANIMATION:
             if (LCM_SUCCESS !=
                 status_leds_set_color(&colors.light_blue, 0U, STATUS_LEDS_COUNT - 1U))
@@ -986,6 +987,7 @@ EVENT_HANDLER(status_leds, command)
                                  &colors.white // RGB color
             );
             break;
+#endif
         default:
             update_display(event);
             break;
@@ -994,6 +996,7 @@ EVENT_HANDLER(status_leds, command)
     case EVENT_COMMAND_SETTINGS_CHANGED:
         switch (data->context)
         {
+#if defined(ENABLE_STATUS_LEDS)
         case COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS:
             status_leds_hw_set_brightness(status_leds_settings->status_brightness);
             break;
@@ -1015,6 +1018,7 @@ EVENT_HANDLER(status_leds, command)
         case COMMAND_PROCESSOR_CONTEXT_PERSONAL_COLOR:
             status_leds_color_callback();
             break;
+#endif
         default:
             update_display(event);
             break;

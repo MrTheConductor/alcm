@@ -30,6 +30,44 @@
 #define CONFIG_H
 
 //------------------------------------------------------------------------------
+// Battery voltage curves 
+//------------------------------------------------------------------------------
+// These are the voltage curves for the Sony VTC6 and P42A cells used in
+// various boards. The values are in millivolts and represent the voltage
+// at each percentage point from 0% to 100%.
+//
+// If you are using a different battery, you will need to add your own
+// voltage curve here.
+#define VTC6_CELL_VOLTAGES {4200, 4064, 4015, 3895, 3821, 3745, 3655, 3559, 3459, 3292, 3000};
+#define P42A_CELL_VOLTAGES {4200, 4064, 4015, 3895, 3821, 3745, 3655, 3559, 3459, 3292, 3000};
+
+//------------------------------------------------------------------------------
+// Target configuration 
+//------------------------------------------------------------------------------
+#if !defined(TARGET_XRV) && !defined(TARGET_PINTV) && !defined(TARGET_GTV) && !defined(TARGET_DEV)
+#define TARGET_MULTI
+#endif
+
+// Stock PintV and XRV use 15S2P Sony VTC6 cells
+#if defined(TARGET_XRV) || defined(TARGET_PINTV)
+#define BATTERY_CELL_VOLTAGES VTC6_CELL_VOLTAGES
+#define BATTERY_CELL_COUNT 15
+// Stock GTV uses 20S2P P42A cells
+#elif defined(TARGET_GTV)
+#define BATTERY_CELL_VOLTAGES P42A_CELL_VOLTAGES 
+#define BATTERY_CELL_COUNT 20
+#endif
+// If you are using a different battery, you will need to define
+// BATTERY_CELL_VOLTAGES and BATTERY_CELL_COUNT manually.
+
+// ------------------------------------------------------------------------------
+// Refloat support
+// ------------------------------------------------------------------------------
+// Refloat (formerly Float package) is a VESC package that adds allows some
+// app based control of the LCM.
+// #define ENABLE_REFLOAT // Enable Refloat support
+
+//------------------------------------------------------------------------------
 // System timeout configuration 
 //------------------------------------------------------------------------------
 #define IDLE_ACTIVE_TIMEOUT (4 * 1000)        // Time before transitioning to default idle
@@ -40,10 +78,10 @@
 //------------------------------------------------------------------------------
 // Ride mode configuration 
 //------------------------------------------------------------------------------
-#define STOPPED_RPM_THRESHOLD 20           // RPM threshold for stopped
-#define SLOW_RPM_THRESHOLD 2000            // RPM threshold for slow riding speed (3-4 MPH)
-#define DUTY_CYCLE_DANGER_THRESHOLD 90.0f  // Duty cycle threshold for danger zone
-#define DUTY_CYCLE_WARNING_THRESHOLD 80.0f // Duty cycle threshold for warning zone
+#define STOPPED_RPM_THRESHOLD (20)              // RPM threshold for stopped
+#define SLOW_RPM_THRESHOLD (2000)               // RPM threshold for slow riding speed (3-4 MPH)
+#define DUTY_CYCLE_DANGER_THRESHOLD (90.0f)     // Duty cycle threshold for danger zone
+#define DUTY_CYCLE_WARNING_THRESHOLD (80.0f)    // Duty cycle threshold for warning zone
 
 //------------------------------------------------------------------------------
 // Button configuration 
@@ -61,8 +99,8 @@
 #define MAX_TIMERS 8U         // Maximum number of system timers
 
 // Headlights configuration
-#define HEADLIGHTS_ENABLE_DOZING 1          // Enable dozing animation for headlights
-#define HEADLIGHTS_ENABLE_SHUTTING_DOWN 1   // Enable shutting down animation for headlights 
+#define HEADLIGHTS_ENABLE_DOZING            // Enable dozing animation for headlights
+#define HEADLIGHTS_ENABLE_SHUTTING_DOWN     // Enable shutting down animation for headlights 
 #define SLOW_BREATH_PERIOD 6000U            // How fast to "breathe" headlights when dozing (ms)
 #define FAST_BREATH_PERIOD 500U             // How fast to flash headlights (ms)
 #define FADE_PERIOD 500U                    // How long to fade out headlights on disable (ms) 
@@ -77,7 +115,7 @@
 //
 // They can be disabled to save code space or if there's no status LEDs on the
 // board like an XR.
-#define ENABLE_STATUS_LEDS 1                      // Enable the status LEDs
+#define ENABLE_STATUS_LEDS                        // Enable the status LEDs
 #define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down
 #define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
 #define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
@@ -91,7 +129,7 @@
 //
 // Individual animations can be enabled or disable to save code space. 
 #undef ENABLE_FIRE_ANIMATION            // Fire effect animation 
-#define ENABLE_KNIGHT_RIDER_ANIMATION 1 // Red "knight rider" animation
+#define ENABLE_KNIGHT_RIDER_ANIMATION   // Red "knight rider" animation
 #undef ENABLE_EXPANDING_PULSE_ANIMATION // Expanding pulse animation 
 #undef ENABLE_PULSE_ANIMATION           // Expanding pulse animation 
 #undef ENABLE_THE_FUZZ_ANIMATION        // The Fuzz animation 
@@ -103,9 +141,9 @@
 // It can be used to indicate warnings, dangers, or other events.
 //
 // It can also be turned off completely to save code space and silence. 
-#define ENABLE_BUZZER 1 // Enable the buzzer module
-#undef BUZZER_ENABLE_WARNING // Enable beeper at warning threshold
-#define BUZZER_ENABLE_DANGER 1 // Enable beeper at danger threshold
+#define ENABLE_BUZZER           // Enable the buzzer module
+#undef BUZZER_ENABLE_WARNING    // Enable beeper at warning threshold
+#define BUZZER_ENABLE_DANGER    // Enable beeper at danger threshold
 
 //------------------------------------------------------------------------------
 // Battery configuration 
@@ -134,23 +172,9 @@
 // dozing idle mode.
 //
 // This can be undefined to save code space if IMU features are not wanted.
-#define ENABLE_VESC_IMU 1 // Enable VESC IMU commnunication
-#define ENABLE_ROLL_EVENTS 1 // Enable roll events
-#define ENABLE_PITCH_EVENTS 1 // Enable pitch events
-
-// ------------------------------------------------------------------------------
-// Refloat support
-// ------------------------------------------------------------------------------
-// Refloat (formerly Float package) is a VESC package that adds allows some
-// app based control of the LCM.
-#undef ENABLE_REFLOAT // Enable Refloat support
-
-// Update configuration for Refloat
-#if defined(ENABLE_REFLOAT)
-#undef ENABLE_VESC_IMU        // Refloat has its own IMU handling
-#undef ENABLE_ROLL_EVENTS     // Refloat does not report roll
-#define ENABLE_PITCH_EVENTS 1 // Refloat does report pitch 
-#endif // ENABLE_REFLOAT
+#define ENABLE_VESC_IMU         // Enable VESC IMU commnunication
+#define ENABLE_ROLL_EVENTS      // Enable roll events
+#define ENABLE_PITCH_EVENTS     // Enable pitch events
 
 //------------------------------------------------------------------------------
 // Debug configuration
@@ -158,5 +182,29 @@
 // These should be generally undefined in production builds.
 #undef UART_DEBUG
 #undef MANUAL_HSI_TRIMMING
+
+// Update configuration for Refloat
+#if defined(ENABLE_REFLOAT)
+#undef ENABLE_VESC_IMU              // Refloat has its own IMU reporting
+#undef ENABLE_ROLL_EVENTS           // Refloat does not report IMU roll
+#define ENABLE_PITCH_EVENTS         // Refloat does report IMU pitch 
+#define ENABLE_VOLTAGE_MONITORING   // Refloat only reports voltage, not battery percentage 
+#endif // ENABLE_REFLOAT
+
+// Need manual HSI trimming for dev board
+#if defined(TARGET_DEV) && !defined(MANUAL_HSI_TRIMMING)
+#define MANUAL_HSI_TRIMMING
+#endif
+
+// XR board has no status LEDs
+#if defined(TARGET_XRV) && defined(ENABLE_STATUS_LEDS)
+#undef ENABLE_STATUS_LEDS
+#undef ENABLE_ROLL_EVENTS
+#endif
+
+// Double-check configurations and provide errors if something is wrong
+#if defined(ENABLE_VOLTAGE_MONITORING) && (!defined(BATTERY_CELL_VOLTAGES) || !defined(BATTERY_CELL_COUNT))
+#error "ENABLE_VOLTAGE_MONITORING requires BATTERY_CELL_VOLTAGES and BATTERY_CELL_COUNT to be defined."
+#endif
 
 #endif

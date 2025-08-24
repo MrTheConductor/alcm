@@ -169,9 +169,9 @@ TIMER_CALLBACK(command_processor, brightness_repeat)
 
     if (LCM_SUCCESS != function_generator_next_sample(
                            &command_processor_fg,
-                           current_context == COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS
-                               ? &(command_processor_settings->status_brightness)
-                               : &(command_processor_settings->headlight_brightness)))
+                           current_context == COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS
+                               ? &(command_processor_settings->headlight_brightness)
+                               : &(command_processor_settings->status_brightness)))
     {
         // Beep at the limit
         event_queue_push(EVENT_COMMAND_NACK, NULL);
@@ -244,8 +244,10 @@ void command_processor_adjust_setting(command_processor_adjustment_t adjustment)
         // Otherwise, init state and start timer
         switch (current_context)
         {
+#if defined(ENABLE_STATUS_LEDS)
         case COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS:
             // Fall-through intentional
+#endif
         case COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS:
             // Setup generator
             function_generator_init(
@@ -256,15 +258,16 @@ void command_processor_adjust_setting(command_processor_adjustment_t adjustment)
             // Set initial value to the current setting
             function_generator_initial_sample(
                 &command_processor_fg,
-                current_context == COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS
-                    ? command_processor_settings->status_brightness
-                    : command_processor_settings->headlight_brightness);
+                current_context == COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS
+                    ? command_processor_settings->headlight_brightness
+                    : command_processor_settings->status_brightness);
 
             // Start timer
             repeat_timer_id =
                 set_timer(BRIGHTNESS_INCREMENT_MS,
                           TIMER_CALLBACK_NAME(command_processor, brightness_repeat), true);
             break;
+#if defined(ENABLE_STATUS_LEDS)
         case COMMAND_PROCESSOR_CONTEXT_PERSONAL_COLOR:
             function_generator_init(&command_processor_fg, FUNCTION_GENERATOR_SAWTOOTH,
                                     COLOR_RANGE_MS, COLOR_INCREMENT_MS, 0.0f, 360.0f,
@@ -316,6 +319,7 @@ void command_processor_adjust_setting(command_processor_adjustment_t adjustment)
                 set_timer(ANIMATION_INCREMENT_MS,
                           TIMER_CALLBACK_NAME(command_processor, animation_repeat), true);
             break;
+#endif
         default:
             // Ignore anything else
             break;
