@@ -127,7 +127,9 @@ lcm_status_t headlights_init(void)
         SUBSCRIBE_EVENT(headlights, EVENT_BOARD_MODE_CHANGED, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_RPM_CHANGED, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_TOGGLE_LIGHTS, state_change);
+#if !defined(ENABLE_REFLOAT)
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_CONTEXT_CHANGED, state_change);
+#endif
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_SETTINGS_CHANGED, state_change);
 #if defined(ENABLE_PITCH_EVENTS)
         SUBSCRIBE_EVENT(headlights, EVENT_IMU_PITCH_CHANGED, state_change);
@@ -426,6 +428,7 @@ EVENT_HANDLER(headlights, state_change)
         }
         break;
     // Handle entering and exiting the headlights brightness settings context
+#if !defined(ENABLE_REFLOAT)
     case EVENT_COMMAND_CONTEXT_CHANGED:
         if (data->context == COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS)
         {
@@ -436,6 +439,7 @@ EVENT_HANDLER(headlights, state_change)
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
         }
         break;
+#endif
 #if defined(ENABLE_PITCH_EVENTS)
     case EVENT_IMU_PITCH_CHANGED:
         // Update the pitch control factor based on the IMU pitch

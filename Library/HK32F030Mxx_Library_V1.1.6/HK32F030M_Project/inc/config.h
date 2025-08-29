@@ -194,8 +194,12 @@
 #if defined(ENABLE_REFLOAT)
 #undef ENABLE_VESC_IMU              // Refloat has its own IMU reporting
 #undef ENABLE_ROLL_EVENTS           // Refloat does not report IMU roll
+#if !defined(ENABLE_PITCH_EVENTS)
 #define ENABLE_PITCH_EVENTS         // Refloat does report IMU pitch 
+#endif
+#if !defined(ENABLE_VOLTAGE_MONITORING)
 #define ENABLE_VOLTAGE_MONITORING   // Refloat only reports voltage, not battery percentage 
+#endif
 #endif // ENABLE_REFLOAT
 
 // Need manual HSI trimming for dev board

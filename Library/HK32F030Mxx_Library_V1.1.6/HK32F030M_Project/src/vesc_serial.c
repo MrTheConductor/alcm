@@ -58,30 +58,21 @@ typedef struct
     int32_t rpm;
     float32_t battery_level;
     uint8_t fault;
-} comm_get_values_setup_selective_t;
-
-#if defined(ENABLE_PITCH_EVENTS) || defined(ENABLE_ROLL_EVENTS)
-typedef struct
-{
 #if defined(ENABLE_PITCH_EVENTS)
     float32_t pitch;
 #endif
 #if defined(ENABLE_ROLL_EVENTS)
     float32_t roll;
 #endif
-} comm_get_imu_data_t;
-#endif
+} vesc_data_t;
 
 static volatile ring_buffer_t vesc_serial_rx_buffer = {0};
 static volatile uint8_t vesc_serial_rx_buffer_data[VESC_SERIAL_RX_BUFFER_SIZE] = {0};
 static timer_id_t vesc_serial_tx_timerid = INVALID_TIMER_ID;
-static comm_get_values_setup_selective_t comm_get_values_setup_selective = {0};
+static vesc_data_t vesc_data = {0};
 static bool_t vesc_alive = false;
 static uint8_t vesc_serial_outstaning_packet_count = 0;
 static vesc_serial_callback_t vesc_serial_callback = NULL;
-#if defined(ENABLE_ROLL_EVENTS) || defined(ENABLE_PITCH_EVENTS)
-static comm_get_imu_data_t comm_get_imu_data = {0};
-#endif
 #if defined(ENABLE_VOLTAGE_MONITORING)
 static const uint16_t cell_voltages[] = BATTERY_CELL_VOLTAGES; 
 #define CELL_VOLTAGE_POINTS (sizeof(cell_voltages)/sizeof(cell_voltages[0]))
@@ -110,10 +101,7 @@ lcm_status_t vesc_serial_init(void)
     vesc_serial_rx_buffer.write_idx = 0U;
 
     // Initialize local data structures 
-    memset(&comm_get_values_setup_selective, 0, sizeof(comm_get_values_setup_selective));
-#if defined(ENABLE_ROLL_EVENTS) || defined(ENABLE_PITCH_EVENTS)
-    memset(&comm_get_imu_data, 0, sizeof(comm_get_imu_data));
-#endif
+    memset(&vesc_data, 0, sizeof(vesc_data));
 
     // Assume VESC is not alive
     vesc_alive = false;
@@ -312,7 +300,7 @@ float32_t buffer_get_float32_auto(const uint8_t *buffer)
  */
 void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
 {
-    comm_get_imu_data_t imu_data = {0};
+    vesc_data_t local_data = {0};
     uint16_t mask = 0;
 
     // Expect a specific packet length for the fields selected.
@@ -335,27 +323,27 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
 
     // Copy the payload into the temporary comm_get_imu_data struct
 #if defined(ENABLE_PITCH_EVENTS)
-    imu_data.pitch = buffer_get_float32_auto(&payload[7]);
+    local_data.pitch = buffer_get_float32_auto(&payload[7]);
 
     // For each field, check if the value has changed
-    if SIGNIFICANT_CHANGE(imu_data.pitch, comm_get_imu_data.pitch)
+    if SIGNIFICANT_CHANGE(local_data.pitch, vesc_data.pitch)
     {
         event_data_t data = {0};
-        data.imu_pitch = RADIANS_TO_DEGREES(imu_data.pitch);
+        data.imu_pitch = RADIANS_TO_DEGREES(local_data.pitch);
         event_queue_push(EVENT_IMU_PITCH_CHANGED, &data);
 
-        comm_get_imu_data.pitch = data.imu_pitch;
+        vesc_data.pitch = data.imu_pitch;
     }
 #endif
 #if defined(ENABLE_ROLL_EVENTS)
-    imu_data.roll = buffer_get_float32_auto(&payload[3]);
-    if SIGNIFICANT_CHANGE(imu_data.roll, comm_get_imu_data.roll)
+    local_data.roll = buffer_get_float32_auto(&payload[3]);
+    if SIGNIFICANT_CHANGE(local_data.roll, vesc_data.roll)
     {
         event_data_t data = {0};
-        data.imu_roll = RADIANS_TO_DEGREES(imu_data.roll);
+        data.imu_roll = RADIANS_TO_DEGREES(local_data.roll);
         event_queue_push(EVENT_IMU_ROLL_CHANGED, &data);
 
-        comm_get_imu_data.roll = data.imu_roll;
+        vesc_data.roll = data.imu_roll;
     }
 #endif
 }
@@ -373,7 +361,7 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
  */
 void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t packet_length)
 {
-    comm_get_values_setup_selective_t values = {0};
+    vesc_data_t local_data = {0};
     uint32_t values_mask = 0;
 
     // Expect a specific packet length for the fields selected.
@@ -394,62 +382,61 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
         return;
     }
 
-    // Copy the payload into the temporary comm_get_values_setup_selective
-    // struct
-    values.duty_cycle = buffer_get_float16(&payload[5], 10.0f);
+    // Copy the payload into the temporary data struct
+    local_data.duty_cycle = buffer_get_float16(&payload[5], 10.0f);
 
     // Coerce the duty cycle to a valid range
-    CLAMP(values.duty_cycle, -100.0f, 100.0f);
+    CLAMP(local_data.duty_cycle, -100.0f, 100.0f);
 
-    values.rpm = buffer_get_float32(&payload[7], 1.0f);
+    local_data.rpm = buffer_get_float32(&payload[7], 1.0f);
 
 #if defined(ENABLE_VOLTAGE_MONITORING)
     float input_voltage = buffer_get_float16(&payload[11], 10.0f);
     float cell_voltage = input_voltage / BATTERY_CELL_COUNT;
     uint16_t cell_voltage_mv = (uint16_t)(cell_voltage * 1000.0f + 0.5f); // +0.5f for rounding
-    values.battery_level = voltage_to_percentage(cell_voltage_mv);
+    local_data.battery_level = voltage_to_percentage(cell_voltage_mv);
 #else
-    values.battery_level = buffer_get_float16(&payload[13], 10.0f);
+    local_data.battery_level = buffer_get_float16(&payload[13], 10.0f);
 #endif
     // The VESC can return battery levels outside of the 0-100% range,
     // so we need to coerce it to a valid range.
-    CLAMP(values.battery_level, 0.0f, 100.0f);
+    CLAMP(local_data.battery_level, 0.0f, 100.0f);
 
-    values.fault = payload[15];
+    local_data.fault = payload[15];
 
     // For each field, check if the value has changed
-    if (values.duty_cycle != comm_get_values_setup_selective.duty_cycle)
+    if (local_data.duty_cycle != vesc_data.duty_cycle)
     {
         event_data_t data = {0};
-        data.duty_cycle = values.duty_cycle;
+        data.duty_cycle = local_data.duty_cycle;
         event_queue_push(EVENT_DUTY_CYCLE_CHANGED, &data);
 
-        comm_get_values_setup_selective.duty_cycle = values.duty_cycle;
+        vesc_data.duty_cycle = local_data.duty_cycle;
     }
 
-    if (values.rpm != comm_get_values_setup_selective.rpm)
+    if (local_data.rpm != vesc_data.rpm)
     {
         event_data_t data = {0};
-        data.rpm = values.rpm;
+        data.rpm = local_data.rpm;
         event_queue_push(EVENT_RPM_CHANGED, &data);
 
-        comm_get_values_setup_selective.rpm = values.rpm;
+        vesc_data.rpm = local_data.rpm;
     }
 
-    if (values.battery_level != comm_get_values_setup_selective.battery_level)
+    if (local_data.battery_level != vesc_data.battery_level)
     {
         event_data_t data = {0};
-        data.battery_level = values.battery_level;
+        data.battery_level = local_data.battery_level;
         event_queue_push(EVENT_BATTERY_LEVEL_CHANGED, &data);
 
-        comm_get_values_setup_selective.battery_level = values.battery_level;
+        vesc_data.battery_level = local_data.battery_level;
     }
 
-    if (values.fault != comm_get_values_setup_selective.fault)
+    if (local_data.fault != vesc_data.fault)
     {
         // Raise VESC faults as emergencies
         fault(EMERGENCY_FAULT_VESC);
-        comm_get_values_setup_selective.fault = values.fault;
+        vesc_data.fault = local_data.fault;
     }
 }
 
@@ -674,7 +661,7 @@ TIMER_CALLBACK(vesc_serial, tx)
  */
 float32_t vesc_serial_get_duty_cycle(void)
 {
-    return comm_get_values_setup_selective.duty_cycle;
+    return vesc_data.duty_cycle;
 }
 
 /**
@@ -684,7 +671,7 @@ float32_t vesc_serial_get_duty_cycle(void)
  */
 int32_t vesc_serial_get_rpm(void)
 {
-    return comm_get_values_setup_selective.rpm;
+    return vesc_data.rpm;
 }
 
 /**
@@ -694,7 +681,7 @@ int32_t vesc_serial_get_rpm(void)
  */
 float32_t vesc_serial_get_battery_level(void)
 {
-    return comm_get_values_setup_selective.battery_level;
+    return vesc_data.battery_level;
 }
 
 /**
@@ -704,7 +691,7 @@ float32_t vesc_serial_get_battery_level(void)
  */
 uint8_t vesc_serial_get_fault(void)
 {
-    return comm_get_values_setup_selective.fault;
+    return vesc_data.fault;
 }
 
 #if defined(ENABLE_PITCH_EVENTS)
@@ -715,7 +702,7 @@ uint8_t vesc_serial_get_fault(void)
  */
 float32_t vesc_serial_get_imu_pitch(void)
 {
-    return comm_get_imu_data.pitch;
+    return vesc_data.pitch;
 }
 #endif
 
@@ -727,6 +714,6 @@ float32_t vesc_serial_get_imu_pitch(void)
  */
 float32_t vesc_serial_get_imu_roll(void)
 {
-    return comm_get_imu_data.roll;
+    return vesc_data.roll;
 }
 #endif

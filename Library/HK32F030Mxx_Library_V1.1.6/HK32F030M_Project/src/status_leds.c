@@ -972,6 +972,7 @@ EVENT_HANDLER(status_leds, command)
             fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT,
                                  status_leds_color_callback);
             break;
+#if !defined(ENABLE_REFLOAT)
         case COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS:
             // Turn the status LEDs white and flashing so the user can
             // see the brightness change
@@ -988,6 +989,7 @@ EVENT_HANDLER(status_leds, command)
             );
             break;
 #endif
+#endif
         default:
             update_display(event);
             break;
@@ -997,9 +999,11 @@ EVENT_HANDLER(status_leds, command)
         switch (data->context)
         {
 #if defined(ENABLE_STATUS_LEDS)
+#if !defined(ENABLE_REFLOAT)
         case COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS:
             status_leds_hw_set_brightness(status_leds_settings->status_brightness);
             break;
+#endif
         case COMMAND_PROCESSOR_CONTEXT_BOOT_ANIMATION:
             status_leds_start_animation_option(status_leds_settings->boot_animation);
             break;

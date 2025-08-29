@@ -57,8 +57,10 @@ static command_processor_adjustment_t command_processor_adjustment = COMMAND_PRO
 EVENT_HANDLER(command_processor, button);
 EVENT_HANDLER(command_processor, board_mode);
 TIMER_CALLBACK(command_procesor, animation_repeat);
-TIMER_CALLBACK(command_procesor, brightness_repeat);
 TIMER_CALLBACK(command_procesor, color_repeat);
+#if !defined(ENABLE_REFLOAT)
+TIMER_CALLBACK(command_procesor, brightness_repeat);
+#endif
 
 /**
  * @brief Initializes the command processor
@@ -159,6 +161,7 @@ void command_processor_one_button_navigation(event_type_t event, uint8_t count)
     }
 }
 
+#if !defined(ENABLE_REFLOAT)
 /**
  * @brief Repeats the brightness adjustment using a timer
  */
@@ -178,6 +181,7 @@ TIMER_CALLBACK(command_processor, brightness_repeat)
     }
     event_queue_push(EVENT_COMMAND_SETTINGS_CHANGED, &event_data);
 }
+#endif
 
 /**
  * @brief Repeats the color adjustment using a timer
@@ -244,6 +248,7 @@ void command_processor_adjust_setting(command_processor_adjustment_t adjustment)
         // Otherwise, init state and start timer
         switch (current_context)
         {
+#if !defined(ENABLE_REFLOAT)
 #if defined(ENABLE_STATUS_LEDS)
         case COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS:
             // Fall-through intentional
@@ -267,6 +272,7 @@ void command_processor_adjust_setting(command_processor_adjustment_t adjustment)
                 set_timer(BRIGHTNESS_INCREMENT_MS,
                           TIMER_CALLBACK_NAME(command_processor, brightness_repeat), true);
             break;
+#endif
 #if defined(ENABLE_STATUS_LEDS)
         case COMMAND_PROCESSOR_CONTEXT_PERSONAL_COLOR:
             function_generator_init(&command_processor_fg, FUNCTION_GENERATOR_SAWTOOTH,
