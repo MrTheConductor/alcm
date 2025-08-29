@@ -17,6 +17,7 @@
  * with ALCM. If not, see <https://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
+#include <math.h>
 
 #include "board_mode.h"
 #include "event_queue.h"
@@ -48,6 +49,9 @@ static hysteresis_t stopped_rpm_hysteresis;
 static hysteresis_t slow_rpm_hysteresis;
 static hysteresis_t danger_hysteresis;
 static hysteresis_t warning_hysteresis;
+#if defined(ENABLE_IMU_EVENTS)
+static hysteresis_t roll_hysteresis;
+#endif
 
 /**
  * @brief Initialization function for board mode management
@@ -72,7 +76,7 @@ lcm_status_t board_mode_init(void)
     SUBSCRIBE_EVENT(board_mode, EVENT_FOOTPAD_CHANGED, footpad_changed);
     SUBSCRIBE_EVENT(board_mode, EVENT_VESC_ALIVE, vesc_alive);
     SUBSCRIBE_EVENT(board_mode, EVENT_DUTY_CYCLE_CHANGED, duty_cycle_changed);
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_IMU_EVENTS)
     SUBSCRIBE_EVENT(board_mode, EVENT_IMU_ROLL_CHANGED, command);
 #endif
 
@@ -100,6 +104,13 @@ lcm_status_t board_mode_init(void)
     {
         status = LCM_ERROR;
     }
+
+#if defined(ENABLE_IMU_EVENTS)
+    if (LCM_SUCCESS != hysteresis_init(&roll_hysteresis,  45.0f, 40.0f)) // degrees
+    {
+        status = LCM_ERROR;
+    }
+#endif
 
     return status;
 }
@@ -276,20 +287,22 @@ EVENT_HANDLER(board_mode, command)
         break;
 #ifdef ENABLE_IMU_EVENTS
     case EVENT_IMU_ROLL_CHANGED:
-        // If the board is on its side, transition to dozing idle mode
-        if (board_mode == BOARD_MODE_IDLE && 
-            (board_submode == BOARD_SUBMODE_IDLE_ACTIVE || board_submode == BOARD_SUBMODE_IDLE_DEFAULT) &&
-            (data->imu_roll > 45.0f || data->imu_roll < -45.0f))
-        {
-            set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_DOZING);
+        if (roll_hysteresis.state != apply_hysteresis(&roll_hysteresis, fabsf(data->imu_roll))) {
+            // If the board is on its side, transition to dozing idle mode
+            if (board_mode == BOARD_MODE_IDLE &&
+                (board_submode == BOARD_SUBMODE_IDLE_ACTIVE || board_submode == BOARD_SUBMODE_IDLE_DEFAULT) &&
+                roll_hysteresis.state == STATE_SET)
+            {
+                set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_DOZING);
+            }
+            // If the board is dozing and turned upright, transition to active idle mode
+            else if (board_mode == BOARD_MODE_IDLE &&
+                    board_submode == BOARD_SUBMODE_IDLE_DOZING &&
+                    roll_hysteresis.state == STATE_RESET)
+            {
+                set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
+            }
         }
-        // Otherwise, if the board is dozing and turned upright, transition to active idle mode
-        else if (board_mode == BOARD_MODE_IDLE && 
-                 board_submode == BOARD_SUBMODE_IDLE_DOZING &&
-                 (data->imu_roll <= 45.0f && data->imu_roll >= -45.0f))
-        {
-            set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
-        } 
         break;
 #endif // ENABLE_IMU_EVENTS
     default:
@@ -355,10 +368,9 @@ void update_riding_submode()
     int32_t rpm = vesc_serial_get_rpm();
 
 #ifdef ENABLE_IMU_EVENTS
-    float imu_roll = vesc_serial_get_imu_roll();
-    if (imu_roll > 45.0f || imu_roll < -45.0f)
+    if (roll_hysteresis.state == STATE_SET)
     {
-        // Don't change the riding submode if the board is on its side, 
+        // Don't change the riding submode if the board is on its side,
         // it's not possible to ride it in this state
         return;
     }
