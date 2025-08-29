@@ -56,9 +56,6 @@ typedef struct
 {
     float32_t duty_cycle;
     int32_t rpm;
-#if defined(ENABLE_VOLTAGE_MONITORING)
-    float32_t input_voltage;
-#endif
     float32_t battery_level;
     uint8_t fault;
 } comm_get_values_setup_selective_t;
@@ -84,6 +81,10 @@ static uint8_t vesc_serial_outstaning_packet_count = 0;
 static vesc_serial_callback_t vesc_serial_callback = NULL;
 #if defined(ENABLE_ROLL_EVENTS) || defined(ENABLE_PITCH_EVENTS)
 static comm_get_imu_data_t comm_get_imu_data = {0};
+#endif
+#if defined(ENABLE_VOLTAGE_MONITORING)
+static const uint16_t cell_voltages[] = BATTERY_CELL_VOLTAGES; 
+#define CELL_VOLTAGE_POINTS (sizeof(cell_voltages)/sizeof(cell_voltages[0]))
 #endif
 
 // Forward declarations
@@ -125,6 +126,37 @@ lcm_status_t vesc_serial_init(void)
 
     return status;
 }
+
+#if defined(ENABLE_VOLTAGE_MONITORING)
+/**
+ * @brief Converts a cell voltage to a battery percentage
+ *
+ * Uses a lookup table to convert a cell voltage to a battery percentage.
+ * The lookup table is defined in config.h as BATTERY_CELL_VOLTAGES.
+ *
+ * @param cell_voltage The cell voltage to convert
+ * @return The battery percentage (0-100)
+ */
+float voltage_to_percentage(uint16_t cell_voltage) {
+    // Clamp to range
+    if (cell_voltage >= cell_voltages[0]) return 100.0f;
+    if (cell_voltage <= cell_voltages[CELL_VOLTAGE_POINTS-1]) return 0.0f;
+
+    // Find interval
+    for (uint8_t i = 0; i < CELL_VOLTAGE_POINTS-1; ++i) {
+        if (cell_voltage <= cell_voltages[i] && cell_voltage > cell_voltages[i+1]) {
+            uint16_t v_high = cell_voltages[i];
+            uint16_t v_low = cell_voltages[i+1];
+            float percent_high = 100.0f - i*10.0f;
+            float percent_low = 100.0f - (i+1)*10.0f;
+            // Linear interpolation
+            float percent = percent_low + (cell_voltage - v_low) * (percent_high - percent_low) / (v_high - v_low);
+            return percent;
+        }
+    }
+    return 0.0f;
+}
+#endif
 
 /**
  * @brief Clears the outstanding packets count and calls the callback if set
@@ -372,10 +404,13 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     values.rpm = buffer_get_float32(&payload[7], 1.0f);
 
 #if defined(ENABLE_VOLTAGE_MONITORING)
-    values.input_voltage = buffer_get_float16(&payload[11], 10.0f);
-#endif
+    float input_voltage = buffer_get_float16(&payload[11], 10.0f);
+    float cell_voltage = input_voltage / BATTERY_CELL_COUNT;
+    uint16_t cell_voltage_mv = (uint16_t)(cell_voltage * 1000.0f + 0.5f); // +0.5f for rounding
+    values.battery_level = voltage_to_percentage(cell_voltage_mv);
+#else
     values.battery_level = buffer_get_float16(&payload[13], 10.0f);
-
+#endif
     // The VESC can return battery levels outside of the 0-100% range,
     // so we need to coerce it to a valid range.
     CLAMP(values.battery_level, 0.0f, 100.0f);
@@ -400,17 +435,6 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
 
         comm_get_values_setup_selective.rpm = values.rpm;
     }
-
-#if defined(ENABLE_VOLTAGE_MONITORING)
-    if (values.input_voltage != comm_get_values_setup_selective.input_voltage)
-    {
-        event_data_t data = {0};
-        data.voltage = values.input_voltage;
-        event_queue_push(EVENT_VOLTAGE_CHANGED, &data);
-
-        comm_get_values_setup_selective.input_voltage = values.input_voltage;
-    }
-#endif
 
     if (values.battery_level != comm_get_values_setup_selective.battery_level)
     {
@@ -662,18 +686,6 @@ int32_t vesc_serial_get_rpm(void)
 {
     return comm_get_values_setup_selective.rpm;
 }
-
-#if defined(ENABLE_VOLTAGE_MONITORING)
-/**
- * @brief Returns the current input voltage of the VESC
- *
- * @return The current input voltage of the VESC
- */
-float32_t vesc_serial_get_input_voltage(void)
-{
-    return comm_get_values_setup_selective.input_voltage;
-}
-#endif
 
 /**
  * @brief Returns the current battery level of the VESC

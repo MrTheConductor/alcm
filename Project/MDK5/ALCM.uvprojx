@@ -942,7 +942,7 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>HK32F030M, HK32F030MF4P6, TARGET_PINTV</Define>
+              <Define>HK32F030M, HK32F030MF4P6, TARGET_PINTV, ENABLE_VOLTAGE_MONITORING</Define>
               <Undefine></Undefine>
               <IncludePath>..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\HK32F030M_Lib\inc;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\CMSIS\CM0\Core;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\CMSIS\HK32F030M\Include;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M_Project\inc</IncludePath>
             </VariousControls>
@@ -1545,7 +1545,7 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>HK32F030M, HK32F030MF4P6, TARGET_XRV</Define>
+              <Define>HK32F030M, HK32F030MF4P6, TARGET_XRV, ENABLE_VOLTAGE_MONITORING</Define>
               <Undefine></Undefine>
               <IncludePath>..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\HK32F030M_Lib\inc;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\CMSIS\CM0\Core;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\CMSIS\HK32F030M\Include;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M_Project\inc</IncludePath>
             </VariousControls>
@@ -2148,7 +2148,7 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>HK32F030M, HK32F030MF4P6, TARGET_DEV</Define>
+              <Define>HK32F030M, HK32F030MF4P6, TARGET_DEV, ENABLE_VOLTAGE_MONITORING</Define>
               <Undefine></Undefine>
               <IncludePath>..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\HK32F030M_Lib\inc;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\CMSIS\CM0\Core;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M\CMSIS\HK32F030M\Include;..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M_Project\inc</IncludePath>
             </VariousControls>

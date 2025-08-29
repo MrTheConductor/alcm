@@ -44,7 +44,10 @@
 //------------------------------------------------------------------------------
 // Target configuration 
 //------------------------------------------------------------------------------
-#if !defined(TARGET_XRV) && !defined(TARGET_PINTV) && !defined(TARGET_GTV) && !defined(TARGET_DEV)
+// The target board can be defined here, or in the command line.  If nothing is
+// defined, it will default to TARGET_MULTI which includes support for all
+// boards, but no app support.
+#if !defined(TARGET_XRV) && !defined(TARGET_PINTV) && !defined(TARGET_GTV) && !defined(TARGET_DEV) && !defined(TARGET_MULTI)
 #define TARGET_MULTI
 #endif
 
@@ -56,6 +59,10 @@
 #elif defined(TARGET_GTV)
 #define BATTERY_CELL_VOLTAGES P42A_CELL_VOLTAGES 
 #define BATTERY_CELL_COUNT 20
+// Fake battery for dev board
+#elif defined(TARGET_DEV)
+#define BATTERY_CELL_VOLTAGES VTC6_CELL_VOLTAGES
+#define BATTERY_CELL_COUNT 15
 #endif
 // If you are using a different battery, you will need to define
 // BATTERY_CELL_VOLTAGES and BATTERY_CELL_COUNT manually.
@@ -158,7 +165,7 @@
 // programming the number of cells and battery curve into
 // the firmware. The second method is less accurate, but
 // requires no modification from board to board.
-#undef ENABLE_VOLTAGE_MONITORING // Enable battery voltage monitoring
+// #define ENABLE_VOLTAGE_MONITORING // Enable battery voltage monitoring
 
 //------------------------------------------------------------------------------
 // IMU configuration
