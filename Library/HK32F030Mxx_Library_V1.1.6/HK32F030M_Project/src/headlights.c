@@ -37,10 +37,10 @@ typedef enum
 {
     HEADLIGHTS_MODE_ANIMATION_NONE,
     HEADLIGHTS_MODE_ANIMATION_IDLE_FADE,
-#ifdef HEADLIGHTS_ENABLE_DOZING
+#if defined(HEADLIGHTS_ENABLE_DOZING)
     HEADLIGHTS_MODE_ANIMATION_IDLE_DOZING,
 #endif
-#ifdef HEADLIGHTS_ENABLE_SHUTTING_DOWN
+#if defined(HEADLIGHTS_ENABLE_SHUTTING_DOWN)
     HEADLIGHTS_MODE_ANIMATION_IDLE_SHUTTING_DOWN,
 #endif
     HEADLIGHTS_MODE_ANIMATION_FLASH,
@@ -66,7 +66,7 @@ static hysteresis_t headlights_rpm_hys;
 
 // Control factors
 float enable_control = 1.0f; // Enable control factor
-#ifdef ENABLE_PITCH_EVENTS
+#if defined(ENABLE_PITCH_EVENTS)
 float pitch_control = 1.0f; // Pitch control factor
 #endif
 float mode_control = 1.0f;  // Mode control factor
@@ -129,7 +129,7 @@ lcm_status_t headlights_init(void)
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_TOGGLE_LIGHTS, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_CONTEXT_CHANGED, state_change);
         SUBSCRIBE_EVENT(headlights, EVENT_COMMAND_SETTINGS_CHANGED, state_change);
-#ifdef ENABLE_PITCH_EVENTS
+#if defined(ENABLE_PITCH_EVENTS)
         SUBSCRIBE_EVENT(headlights, EVENT_IMU_PITCH_CHANGED, state_change);
 #endif
     }
@@ -143,7 +143,7 @@ void headlights_set_hw_brightness()
     hw_brightness = (uint16_t)
         (headlights_settings->headlight_brightness *
          enable_control *
-#ifdef ENABLE_PITCH_EVENTS
+#if defined(ENABLE_PITCH_EVENTS)
          pitch_control *
 #endif
          mode_control *
@@ -247,7 +247,7 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 FG_FLAG_INVERT,
                                 0U);
         break;
-#ifdef HEADLIGHTS_ENABLE_DOZING
+#if defined(HEADLIGHTS_ENABLE_DOZING)
     case HEADLIGHTS_MODE_ANIMATION_IDLE_DOZING:
         // Initialize the function generator for idle dozing animation
         function_generator_init(&headlights_mode_fg,
@@ -260,7 +260,7 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 0U);
         break;
 #endif
-#ifdef HEADLIGHTS_ENABLE_SHUTTING_DOWN
+#if defined(HEADLIGHTS_ENABLE_SHUTTING_DOWN)
     case HEADLIGHTS_MODE_ANIMATION_IDLE_SHUTTING_DOWN:
         // Initialize the function generator for idle shutting down animation
         function_generator_init(&headlights_mode_fg,
@@ -389,12 +389,12 @@ EVENT_HANDLER(headlights, state_change)
             case BOARD_SUBMODE_IDLE_DEFAULT:
                 headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_IDLE_FADE);
                 break;
-#ifdef HEADLIGHTS_ENABLE_DOZING
+#if defined(HEADLIGHTS_ENABLE_DOZING)
             case BOARD_SUBMODE_IDLE_DOZING:
                 headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_IDLE_DOZING);
                 break;
 #endif
-#ifdef HEADLIGHTS_ENABLE_SHUTTING_DOWN
+#if defined(HEADLIGHTS_ENABLE_SHUTTING_DOWN)
             case BOARD_SUBMODE_IDLE_SHUTTING_DOWN:
                 headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_IDLE_SHUTTING_DOWN);
                 break;
@@ -436,7 +436,7 @@ EVENT_HANDLER(headlights, state_change)
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
         }
         break;
-#ifdef ENABLE_PITCH_EVENTS
+#if defined(ENABLE_PITCH_EVENTS)
     case EVENT_IMU_PITCH_CHANGED:
         // Update the pitch control factor based on the IMU pitch
         {

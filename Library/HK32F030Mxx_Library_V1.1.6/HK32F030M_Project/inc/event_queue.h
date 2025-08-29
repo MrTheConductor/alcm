@@ -82,10 +82,10 @@ typedef enum
     EVENT_VESC_ALIVE,
     
     // IMU events
-#ifdef ENABLE_PITCH_EVENTS
+#if defined(ENABLE_PITCH_EVENTS)
     EVENT_IMU_PITCH_CHANGED,
 #endif
-#ifdef ENABLE_ROLL_EVENTS
+#if defined(ENABLE_ROLL_EVENTS)
     EVENT_IMU_ROLL_CHANGED,
 #endif
 
