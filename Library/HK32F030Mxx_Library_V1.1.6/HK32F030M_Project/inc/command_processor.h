@@ -32,6 +32,7 @@ typedef enum
 #if !defined(ENABLE_REFLOAT)
     COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS,
 #endif
+/* If there's no status LEDs, don't configure brightness or animations */
 #if defined(ENABLE_STATUS_LEDS)
 #if !defined(ENABLE_REFLOAT)
     COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS,
