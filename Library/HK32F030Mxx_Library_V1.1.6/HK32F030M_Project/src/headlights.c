@@ -293,6 +293,7 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
         {
             cancel_timer(headlights_mode_animation_timer_id);
             headlights_mode_animation_timer_id = INVALID_TIMER_ID;
+            headlights_set_hw_brightness();
         }
     }
     else
@@ -373,7 +374,15 @@ EVENT_HANDLER(headlights, state_change)
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
             break;
         case BOARD_MODE_FAULT:
-            headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_FLASH);
+            // If in internal fault, flash the headlights
+            if (board_submode_get() == BOARD_SUBMODE_FAULT_INTERNAL) {
+                headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_FLASH);
+            }
+            else
+            {
+                // Otherwise, stop any animations
+                headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
+            }
             break;
         case BOARD_MODE_IDLE:
             switch (board_submode_get())

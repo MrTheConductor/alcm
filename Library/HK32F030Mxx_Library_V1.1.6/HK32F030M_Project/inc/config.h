@@ -141,6 +141,6 @@
 //------------------------------------------------------------------------------
 // These should be generally undefined in production builds.
 #undef UART_DEBUG
-#undef MANUAL_HSI_TRIMMING
+#define MANUAL_HSI_TRIMMING 1
 
 #endif

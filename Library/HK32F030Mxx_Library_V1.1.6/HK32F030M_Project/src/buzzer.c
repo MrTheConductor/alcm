@@ -32,7 +32,6 @@
 
 // Buzzer sequences
 #define ACK_SEQUENCE 0xC000
-#define ACK_2_SEQUENCE 0xA000
 #define NACK_SEQUENCE 0xCC00
 #define SHUTDOWN_SEQUENCE 0xC000
 #define WARNING_SEQUENCE 0xF000
@@ -71,7 +70,6 @@ lcm_status_t buzzer_init(void)
 
         // Subscribe to events
         SUBSCRIBE_EVENT(buzzer, EVENT_COMMAND_ACK, command);
-        SUBSCRIBE_EVENT(buzzer, EVENT_COMMAND_ACK_2, command);
         SUBSCRIBE_EVENT(buzzer, EVENT_COMMAND_NACK, command);
         SUBSCRIBE_EVENT(buzzer, EVENT_COMMAND_TOGGLE_BEEPER, command);
         SUBSCRIBE_EVENT(buzzer, EVENT_BOARD_MODE_CHANGED, board_mode);
@@ -162,12 +160,6 @@ EVENT_HANDLER(buzzer, command)
             buzzer_play_sequence(ACK_SEQUENCE, false);
         }
         break;
-    case EVENT_COMMAND_ACK_2:
-        if (buzzer_timer_id == INVALID_TIMER_ID || !is_timer_active(buzzer_timer_id))
-        {
-            buzzer_play_sequence(ACK_2_SEQUENCE, false);
-        }
-        break;
     case EVENT_COMMAND_NACK:
         buzzer_play_sequence(NACK_SEQUENCE, false);
         break;
@@ -206,7 +198,16 @@ EVENT_HANDLER(buzzer, board_mode)
         }
         break;
     case BOARD_MODE_FAULT:
-        buzzer_play_sequence(FAULT_SEQUENCE, true);
+        if (data->board_mode.submode == BOARD_SUBMODE_FAULT_INTERNAL)
+        {
+            // Play the fault sequence on internal fault
+            buzzer_play_sequence(FAULT_SEQUENCE, true);
+        }
+        else
+        {
+            // Otherwise, play the danger sequence on VESC fault
+            buzzer_play_sequence(DANGER_SEQUENCE, true);
+        }
         break;
     case BOARD_MODE_RIDING:
         switch (data->board_mode.submode)

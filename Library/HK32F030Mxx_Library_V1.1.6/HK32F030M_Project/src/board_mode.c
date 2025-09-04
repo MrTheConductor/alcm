@@ -30,7 +30,7 @@
 // Forward declarations
 EVENT_HANDLER(board_mode, command);
 EVENT_HANDLER(board_mode, rpm_changed);
-EVENT_HANDLER(board_mode, emergency_fault);
+EVENT_HANDLER(board_mode, fault);
 EVENT_HANDLER(board_mode, footpad_changed);
 EVENT_HANDLER(board_mode, vesc_alive);
 EVENT_HANDLER(board_mode, duty_cycle_changed);
@@ -68,11 +68,13 @@ lcm_status_t board_mode_init(void)
 
     // Subscribe to events
     SUBSCRIBE_EVENT(board_mode, EVENT_BUTTON_UP, command);
+    SUBSCRIBE_EVENT(board_mode, EVENT_BUTTON_DOWN, command);
     SUBSCRIBE_EVENT(board_mode, EVENT_COMMAND_SHUTDOWN, command);
     SUBSCRIBE_EVENT(board_mode, EVENT_COMMAND_BOOT, command);
     SUBSCRIBE_EVENT(board_mode, EVENT_COMMAND_MODE_CONFIG, command);
     SUBSCRIBE_EVENT(board_mode, EVENT_RPM_CHANGED, rpm_changed);
-    SUBSCRIBE_EVENT(board_mode, EVENT_EMERGENCY_FAULT, emergency_fault);
+    SUBSCRIBE_EVENT(board_mode, EVENT_EMERGENCY_FAULT, fault);
+    SUBSCRIBE_EVENT(board_mode, EVENT_VESC_FAULT_CHANGED, fault);
     SUBSCRIBE_EVENT(board_mode, EVENT_FOOTPAD_CHANGED, footpad_changed);
     SUBSCRIBE_EVENT(board_mode, EVENT_VESC_ALIVE, vesc_alive);
     SUBSCRIBE_EVENT(board_mode, EVENT_DUTY_CYCLE_CHANGED, duty_cycle_changed);
@@ -285,6 +287,13 @@ EVENT_HANDLER(board_mode, command)
             set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
         }
         break;
+    case EVENT_BUTTON_DOWN:
+        // If the board is in fault mode, kill it immediately
+        if (board_mode == BOARD_MODE_FAULT)
+        {
+            set_board_mode(BOARD_MODE_OFF, BOARD_SUBMODE_UNDEFINED);
+        }
+        break;
 #ifdef ENABLE_IMU_EVENTS
     case EVENT_IMU_ROLL_CHANGED:
         if (roll_hysteresis.state != apply_hysteresis(&roll_hysteresis, fabsf(data->imu_roll))) {
@@ -488,9 +497,29 @@ EVENT_HANDLER(board_mode, duty_cycle_changed)
  *              enumeration
  * @param value The value associated with the event, specified as a uint32_t
  */
-EVENT_HANDLER(board_mode, emergency_fault)
+EVENT_HANDLER(board_mode, fault)
 {
-    set_board_mode(BOARD_MODE_FAULT, BOARD_SUBMODE_UNDEFINED);
+    switch (event)
+    {
+        case EVENT_VESC_FAULT_CHANGED:
+            if (data->vesc_fault != 0) {
+                set_board_mode(BOARD_MODE_FAULT, BOARD_SUBMODE_FAULT_VESC);
+            }
+            else
+            {
+                set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
+            }
+            break;
+        /*
+         * Emergency fault occurred, transition to internal fault mode 
+         */
+        case EVENT_EMERGENCY_FAULT:
+            // Intentional fallthrough 
+        default:
+            // Unexpected event
+            set_board_mode(BOARD_MODE_FAULT, BOARD_SUBMODE_FAULT_INTERNAL);
+            break;
+    }
 }
 
 /**

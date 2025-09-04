@@ -57,7 +57,11 @@ typedef enum
     BOARD_SUBMODE_RIDING_SLOW,    // Slow riding submode
     BOARD_SUBMODE_RIDING_NORMAL,  // Normal riding submode
     BOARD_SUBMODE_RIDING_WARNING, // Fast riding submode (duty cycle > 80%)
-    BOARD_SUBMODE_RIDING_DANGER   // Danger riding submode (duty cycle > 90%)
+    BOARD_SUBMODE_RIDING_DANGER,  // Danger riding submode (duty cycle > 90%)
+
+    // Fault submodes
+    BOARD_SUBMODE_FAULT_INTERNAL,   // Internal fault submode
+    BOARD_SUBMODE_FAULT_VESC        // VESC fault submode
 } board_submode_t;
 
 // Public functions

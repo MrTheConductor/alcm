@@ -135,7 +135,7 @@ void command_processor_one_button_navigation(event_type_t event, uint8_t count)
             {
                 command_processor_set_context(current_context - 1);
             }
-            event_queue_push(EVENT_COMMAND_ACK_2, NULL);
+            event_queue_push(EVENT_COMMAND_ACK, NULL);
             break;
         default:
             event_queue_push(EVENT_COMMAND_NACK, NULL);
@@ -215,7 +215,7 @@ TIMER_CALLBACK(command_processor, animation_repeat)
         {
             *animation_setting =
                 *animation_setting == 0 ? ANIMATION_OPTION_COUNT - 1 : *animation_setting - 1;
-            event_queue_push(EVENT_COMMAND_ACK_2, NULL);
+            event_queue_push(EVENT_COMMAND_ACK, NULL);
         }
     }
     event_queue_push(EVENT_COMMAND_SETTINGS_CHANGED, &event_data);

@@ -414,10 +414,14 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
         comm_get_values_setup_selective.battery_level = values.battery_level;
     }
 
+    /*
+     * Handle fault changes.
+     */
     if (values.fault != comm_get_values_setup_selective.fault)
     {
-        // Raise VESC faults as emergencies
-        fault(EMERGENCY_FAULT_VESC);
+        event_data_t data = {0};
+        data.vesc_fault = values.fault;
+        event_queue_push(EVENT_VESC_FAULT_CHANGED, &data);
         comm_get_values_setup_selective.fault = values.fault;
     }
 }

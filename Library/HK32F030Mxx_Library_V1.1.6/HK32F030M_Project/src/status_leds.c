@@ -488,17 +488,27 @@ void status_leds_handle_fault(event_type_t event)
 {
     if (event == EVENT_BOARD_MODE_CHANGED)
     {
+        // Default to red color
+        const status_leds_color_t *color = &colors.red;
+
+        // If this is an internal fault, use magenta color
+        if (board_submode_get() == BOARD_SUBMODE_FAULT_INTERNAL)
+        {
+            // If this is an internal fault, use yellow color
+            color = &colors.magenta;
+        }
+
         // Start the red/yellow fault animation
-        fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_SQUARE, BRIGHTNESS_MODE_SEQUENCE,
-                             FILL_MODE_SOLID, 0U, STATUS_LEDS_COUNT - 1U,
-                             0.0f,   // hue min
-                             60.0f,  // hue max
-                             500.0f, // color change speed
-                             0.0f,   // brightness min
-                             1.0f,   // brightness max
-                             250.0f, // brightness speed
-                             0xF0F0, // bright sequence
-                             NULL    // RGB color (ignored)
+        fill_animation_setup(status_leds_buffer, COLOR_MODE_RGB, BRIGHTNESS_MODE_SEQUENCE,
+                            FILL_MODE_SOLID, 0U, STATUS_LEDS_COUNT - 1U,
+                            0.0f,   // hue min
+                            0.0f,   // hue max
+                            0.0f,   // color change speed
+                            0.0f,   // brightness min
+                            1.0f,   // brightness max
+                            250.0f, // brightness speed
+                            0xF000, // bright sequence
+                            color   // RGB color
         );
     }
     // No else needed, no other events to handle in this state
