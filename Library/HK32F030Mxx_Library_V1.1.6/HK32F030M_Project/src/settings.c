@@ -24,6 +24,15 @@
 #include "event_queue.h"
 
 /**
+ * @brief      Magic number to identify valid settings.
+ *
+ * @details    This magic number is used to identify valid settings in the EEPROM.
+ *             If the magic number in the settings does not match this value, the
+ *             settings are considered invalid and will be reset to default values.
+ */
+#define MAGIC_NUMBER 0xbeef0001
+
+/**
  * @brief      Structure to represent the settings in the EEPROM.
  */
 typedef struct
@@ -52,6 +61,7 @@ void settings_reset(void)
     // however, we do it anyway just to be certain nothing is uninitialized.
     memset(&eeprom, 0, sizeof(eeprom));
 
+    eeprom.settings.magic = MAGIC_NUMBER;
     eeprom.settings.enable_beep = true;
     eeprom.settings.enable_headlights = true;
     eeprom.settings.enable_status_leds = true;
@@ -82,8 +92,13 @@ bool_t settings_range_check(void)
 {
     bool_t valid = true;
 
-    // Headlight brightness
-    if (eeprom.settings.headlight_brightness < 0.0f || eeprom.settings.headlight_brightness > 1.0f)
+    // Check magic number
+    if (eeprom.settings.magic != MAGIC_NUMBER)
+    {
+        valid = false;
+    }
+    else if (eeprom.settings.headlight_brightness < 0.0f ||
+             eeprom.settings.headlight_brightness > 1.0f)
     {
         valid = false;
     }
@@ -147,6 +162,7 @@ lcm_status_t settings_init(void)
 
     // Settings are loaded
     settings_loaded = true;
+
     return status;
 }
 

@@ -28,6 +28,7 @@
  */
 typedef struct
 {
+    uint32_t magic;                        // Magic number to identify valid settings.
     float32_t headlight_brightness;        // Brightness level for the headlights
     float32_t status_brightness;           // Brightness level for the status LEDs.
     float32_t personal_color;              // Personal color.
