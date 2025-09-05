@@ -551,6 +551,7 @@ EVENT_HANDLER(vesc_serial, board_mode_change)
     case BOARD_MODE_BOOTING:
     case BOARD_MODE_IDLE:
     case BOARD_MODE_RIDING:
+    case BOARD_MODE_FAULT:
         if (vesc_serial_tx_timerid == INVALID_TIMER_ID || !is_timer_active(vesc_serial_tx_timerid))
         {
             vesc_serial_tx_timerid =

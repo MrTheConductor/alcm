@@ -440,9 +440,13 @@ void command_processor_default_handler(event_type_t event, const event_data_t *d
  */
 EVENT_HANDLER(command_processor, button)
 {
-    // Ignore events if the board is booting - this should probably
-    // be it's own context
-    if (board_mode_get() == BOARD_MODE_BOOTING)
+    // Ignore events if the board is booting or in a fault state
+    //
+    // TBD: Maybe this should be an inhibited context instead?
+    board_mode_t mode = board_mode_get();
+    if (mode == BOARD_MODE_BOOTING ||
+        mode == BOARD_MODE_FAULT ||
+        mode == BOARD_MODE_OFF)
     {
         return;
     }

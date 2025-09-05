@@ -186,15 +186,15 @@ EVENT_HANDLER(buzzer, board_mode)
             // Play the shutdown sequence on shutdown
             buzzer_play_sequence(SHUTDOWN_SEQUENCE, true);
         }
-        else if (data->board_mode.previous_submode == BOARD_SUBMODE_IDLE_SHUTTING_DOWN)
-        {
-            // Stop the shutdown sequence if it was playing
-            buzzer_reset_sequence();
-        }
         else if (data->board_mode.previous_mode == BOARD_MODE_BOOTING)
         {
             // Play the boot sequence on boot
             buzzer_play_sequence(BOOT_SEQUENCE, false);
+        }
+        else
+        {
+            // Otherwise, silence the buzzer 
+            buzzer_reset_sequence();
         }
         break;
     case BOARD_MODE_FAULT:

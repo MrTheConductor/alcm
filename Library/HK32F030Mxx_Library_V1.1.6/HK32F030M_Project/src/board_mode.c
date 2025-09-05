@@ -502,7 +502,7 @@ EVENT_HANDLER(board_mode, fault)
     switch (event)
     {
         case EVENT_VESC_FAULT_CHANGED:
-            if (data->vesc_fault != 0) {
+            if (data->vesc_fault > 0) {
                 set_board_mode(BOARD_MODE_FAULT, BOARD_SUBMODE_FAULT_VESC);
             }
             else

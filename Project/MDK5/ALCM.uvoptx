@@ -185,6 +185,11 @@
           <WinNumber>1</WinNumber>
           <ItemText>velocity</ItemText>
         </Ww>
+        <Ww>
+          <count>7</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>board_mode</ItemText>
+        </Ww>
       </WatchWindow1>
       <MemoryWindow1>
         <Mm>
