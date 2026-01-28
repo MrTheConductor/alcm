@@ -302,7 +302,7 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
     imu_data.pitch = buffer_get_float32_auto(&payload[7]);
 
     // For each field, check if the value has changed
-    if SIGNIFICANT_CHANGE(imu_data.pitch, comm_get_imu_data.pitch)
+    if (SIGNIFICANT_CHANGE(imu_data.pitch, comm_get_imu_data.pitch))
     {
         event_data_t data = {0};
         data.imu_pitch = RADIANS_TO_DEGREES(imu_data.pitch);
@@ -311,7 +311,7 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
         comm_get_imu_data.pitch = data.imu_pitch;
     }
 
-    if SIGNIFICANT_CHANGE(imu_data.roll, comm_get_imu_data.roll)
+    if (SIGNIFICANT_CHANGE(imu_data.roll, comm_get_imu_data.roll))
     {
         event_data_t data = {0};
         data.imu_roll = RADIANS_TO_DEGREES(imu_data.roll);
