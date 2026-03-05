@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <!-- Rebuild C library before building C# app -->
+  <Target Name="BuildNativeLibrary" BeforeTargets="PreBuildEvent">
+    <Exec Command="cmake --build &quot;$(ProjectDir)..\ALCM.Library\build&quot; --config Debug" IgnoreExitCode="false" WorkingDirectory="$(ProjectDir)..\.." />
+  </Target>
+
+  <ItemGroup>
+    <!-- Copy ALCM.Library.dll to output directory -->
+    <None Include="../ALCM.Library/build/bin/Debug/ALCM.Library.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('../ALCM.Library/build/bin/Debug/ALCM.Library.dll')" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,82 @@
+# .NET / C# Build outputs
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.user
+*.suo
+*.cache
+*.log
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.csproj.user
+*.vcxproj.user
+*.vcxproj.filters
+
+# CMake build directory
+build/
+ALCM.Library/build/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+CTestTestfile.cmake
+*.vcxproj
+*.vcxproj.filters
+*.sln
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Compiled Object files
+*.o
+*.obj
+*.lib
+*.exp
+*.pch
+
+# NuGet packages
+packages/
+*.nupkg
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+*.bin
+
+# OS generated files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Rider
+.idea/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Backup files
+*.bak
+*.backup

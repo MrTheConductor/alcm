@@ -1,0 +1,405 @@
+<Window x:Class="BoardSimulator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:BoardSimulator.ViewModels"
+        xmlns:converters="clr-namespace:BoardSimulator.Converters"
+        mc:Ignorable="d"
+        Title="ALCM Board Simulator" Height="700" Width="900"
+        Background="#1E1E1E">
+    
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+    
+    <Window.Resources>
+        <!-- Converters -->
+        <converters:BrightnessToOpacityConverter x:Key="BrightnessToOpacityConverter" />
+        
+        <!-- LED Style -->
+        <Style x:Key="LedStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="40" />
+            <Setter Property="Height" Value="40" />
+            <Setter Property="Stroke" Value="#444444" />
+            <Setter Property="StrokeThickness" Value="2" />
+        </Style>
+        
+        <!-- Label Style -->
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#CCCCCC" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        
+        <!-- Value Label Style -->
+        <Style x:Key="ValueLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#00D7FF" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="MinWidth" Value="60" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        
+        <!-- Slider Style -->
+        <Style x:Key="SliderStyle" TargetType="Slider">
+            <Setter Property="Margin" Value="10,5" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        
+        <!-- Button Style -->
+        <Style x:Key="ButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2D2D30" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#3F3F46" />
+            <Setter Property="Padding" Value="20,10" />
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="3">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3E3E42" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="#656565" />
+                    <Setter Property="Background" Value="#252526" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <!-- Momentary Button Style (for power button) -->
+        <Style x:Key="MomentaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2D2D30" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#00D7FF" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Padding" Value="30,15" />
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#00D7FF" />
+                    <Setter Property="Foreground" Value="#000000" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3E3E42" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        
+        <!-- Header -->
+        <TextBlock Grid.Row="0" 
+                   Text="ALCM Board Simulator" 
+                   FontSize="24" 
+                   FontWeight="Bold" 
+                   Foreground="#00D7FF" 
+                   Margin="0,0,0,20" />
+        
+        <!-- Control Panel -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,20">
+            <Button Content="Start" Command="{Binding StartCommand}" Style="{StaticResource ButtonStyle}" />
+            <Button Content="Stop" Command="{Binding StopCommand}" Style="{StaticResource ButtonStyle}" />
+            <Button Content="Reset" Command="{Binding ResetCommand}" Style="{StaticResource ButtonStyle}" />
+            
+            <!-- Power Button (Momentary) -->
+            <Button Content="⚡ POWER" 
+                    Style="{StaticResource MomentaryButtonStyle}"
+                    Margin="30,5,5,5"
+                    PreviewMouseDown="PowerButton_MouseDown"
+                    PreviewMouseUp="PowerButton_MouseUp"
+                    MouseLeave="PowerButton_MouseLeave"
+                    ToolTip="Hold to simulate power button press" />
+            
+            <TextBlock Text="Time Scale:" Style="{StaticResource LabelStyle}" Margin="30,0,10,0" />
+            <Slider Width="150" 
+                    Minimum="1" 
+                    Maximum="10" 
+                    Value="{Binding TimeScale}" 
+                    TickFrequency="1" 
+                    IsSnapToTickEnabled="True"
+                    VerticalAlignment="Center" />
+            <TextBlock Text="{Binding TimeScale, StringFormat={}{0}x}" 
+                       Style="{StaticResource ValueLabelStyle}" 
+                       Margin="10,0,0,0" />
+        </StackPanel>
+        
+        <!-- Main Content -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            
+            <!-- Left Column - LEDs -->
+            <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                <!-- Status LEDs - 10 RGB LED Array with Diffuser (Glowing Bar) -->
+                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="5" Padding="20" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="Status LEDs (10-LED Array)" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,15" />
+                        <TextBlock Text="Simulates hardware LED array with diffuser" FontSize="11" Foreground="#999999" Margin="0,0,0,10" />
+                        
+                        <!-- LED Array Bar with Glow Effect -->
+                        <Border Background="#1A1A1A" BorderBrush="#333333" BorderThickness="2" CornerRadius="8" Padding="10" HorizontalAlignment="Center">
+                            <Grid>
+                                <!-- Glow layer (background blur) -->
+                                <ItemsControl ItemsSource="{Binding StatusLedArray}" HorizontalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Width="35" Height="60" Margin="2">
+                                                <Rectangle Fill="{Binding DisplayBrush}" RadiusX="4" RadiusY="4">
+                                                    <Rectangle.Effect>
+                                                        <BlurEffect Radius="15" />
+                                                    </Rectangle.Effect>
+                                                </Rectangle>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                
+                                <!-- Sharp layer (foreground) -->
+                                <ItemsControl ItemsSource="{Binding StatusLedArray}" HorizontalAlignment="Center">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Width="35" Height="60" Margin="2">
+                                                <Rectangle Fill="{Binding DisplayBrush}" RadiusX="4" RadiusY="4" Opacity="0.8" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+                        
+                        <!-- LED index numbers -->
+                        <Grid HorizontalAlignment="Center" Width="390" Margin="0,5,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                                <ColumnDefinition Width="39" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="0" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="1" Text="1" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="2" Text="2" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="3" Text="3" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="4" Text="4" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="5" Text="5" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="6" Text="6" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="7" Text="7" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="8" Text="8" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                            <TextBlock Grid.Column="9" Text="9" TextAlignment="Center" Foreground="#666666" FontSize="10" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Headlights -->
+                <Border Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="5" Padding="20">
+                    <StackPanel>
+                        <TextBlock Text="Headlights" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,15" />
+                        
+                        <UniformGrid Columns="2" HorizontalAlignment="Center">
+                            <StackPanel Margin="30,5">
+                                <Rectangle Fill="{Binding HeadlightFront.DisplayBrush}"
+                                           Width="80" Height="30" RadiusX="8" RadiusY="8"
+                                           Stroke="#444444" StrokeThickness="2">
+                                    <Rectangle.Effect>
+                                        <DropShadowEffect Color="{Binding HeadlightFront.Color}" 
+                                                         BlurRadius="20" 
+                                                         ShadowDepth="0" 
+                                                         Opacity="{Binding HeadlightFront.Brightness, Converter={StaticResource BrightnessToOpacityConverter}}" />
+                                    </Rectangle.Effect>
+                                </Rectangle>
+                                <TextBlock Text="Front" Foreground="#999999" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                            </StackPanel>
+                            <StackPanel Margin="30,5">
+                                <Rectangle Fill="{Binding HeadlightRear.DisplayBrush}"
+                                           Width="80" Height="30" RadiusX="8" RadiusY="8"
+                                           Stroke="#444444" StrokeThickness="2">
+                                    <Rectangle.Effect>
+                                        <DropShadowEffect Color="{Binding HeadlightRear.Color}" 
+                                                         BlurRadius="20" 
+                                                         ShadowDepth="0" 
+                                                         Opacity="{Binding HeadlightRear.Brightness, Converter={StaticResource BrightnessToOpacityConverter}}" />
+                                    </Rectangle.Effect>
+                                </Rectangle>
+                                <TextBlock Text="Rear" Foreground="#999999" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            
+            <!-- Right Column - Inputs -->
+            <Border Grid.Column="1" Background="#252526" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="5" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="Inputs" FontSize="18" FontWeight="Bold" Foreground="#FFFFFF" Margin="0,0,0,15" />
+                    
+                    <!-- Footpads -->
+                    <TextBlock Text="Footpads" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,10,0,10" />
+                    
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Left Pad:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1" 
+                                Minimum="0" 
+                                Maximum="3.3" 
+                                Value="{Binding LeftFootpadVoltage}" 
+                                TickFrequency="0.1"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2" 
+                                   Text="{Binding LeftFootpadVoltage, StringFormat={}{0:F2} V}" 
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+                    
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Right Pad:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1" 
+                                Minimum="0" 
+                                Maximum="3.3" 
+                                Value="{Binding RightFootpadVoltage}" 
+                                TickFrequency="0.1"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2" 
+                                   Text="{Binding RightFootpadVoltage, StringFormat={}{0:F2} V}" 
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+                    
+                    <!-- VESC Data -->
+                    <TextBlock Text="VESC Data" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
+                    
+                    <!-- VESC Enable Toggle -->
+                    <CheckBox IsChecked="{Binding VescEnabled}" 
+                              Foreground="#CCCCCC" 
+                              Margin="0,0,0,10">
+                        <TextBlock>
+                            <Run Text="VESC Enabled" FontWeight="SemiBold" />
+                            <LineBreak />
+                            <Run Text="When enabled, VESC messages are sent to ALCM" FontSize="10" Foreground="#999999" />
+                        </TextBlock>
+                    </CheckBox>
+                    
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Battery:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1" 
+                                Minimum="40" 
+                                Maximum="67.2" 
+                                Value="{Binding BatteryVoltage}" 
+                                TickFrequency="0.1"
+                                IsEnabled="{Binding VescEnabled}"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2" 
+                                   Text="{Binding BatteryVoltage, StringFormat={}{0:F1} V}" 
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+                    
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Motor RPM:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1" 
+                                Minimum="-2000" 
+                                Maximum="2000" 
+                                Value="{Binding MotorRpm}" 
+                                TickFrequency="10"
+                                IsEnabled="{Binding VescEnabled}"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2" 
+                                   Text="{Binding MotorRpm, StringFormat={}{0:F0}}" 
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+                    
+                    <!-- Quick Presets -->
+                    <TextBlock Text="Quick Actions" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
+                    
+                    <UniformGrid Columns="2" Margin="0,5">
+                        <Button Content="Both Pads ON" 
+                                Click="BothPadsOn_Click"
+                                Style="{StaticResource ButtonStyle}" />
+                        <Button Content="Both Pads OFF" 
+                                Click="BothPadsOff_Click"
+                                Style="{StaticResource ButtonStyle}" />
+                    </UniformGrid>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Status Bar -->
+        <Border Grid.Row="3" 
+                Background="#007ACC" 
+                CornerRadius="3" 
+                Padding="10" 
+                Margin="0,20,0,0">
+            <TextBlock Text="{Binding StatusText}" 
+                       Foreground="#FFFFFF" 
+                       FontSize="14" />
+        </Border>
+    </Grid>
+</Window>
