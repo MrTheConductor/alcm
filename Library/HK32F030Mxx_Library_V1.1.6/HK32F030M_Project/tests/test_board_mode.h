@@ -49,6 +49,8 @@ int board_mode_setup(void **state)
     // Board mode subscribes to a lot of events
     expect_value(subscribe_event, event, EVENT_BUTTON_UP);
     expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_BUTTON_DOWN);
+    expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_SHUTDOWN);
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_BOOT);
@@ -59,11 +61,15 @@ int board_mode_setup(void **state)
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_EMERGENCY_FAULT);
     expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_VESC_FAULT_CHANGED);
+    expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_FOOTPAD_CHANGED);
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_VESC_ALIVE);
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_DUTY_CYCLE_CHANGED);
+    expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_IMU_ROLL_CHANGED);
     expect_any(subscribe_event, callback);
 
     board_mode_init();
@@ -347,7 +353,7 @@ void trigger_emergency_fault()
     event_data_t fault_event_data = {0};
     expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
     expected_state.mode = BOARD_MODE_FAULT;
-    expected_state.submode = BOARD_SUBMODE_UNDEFINED;
+    expected_state.submode = BOARD_SUBMODE_FAULT_INTERNAL;
     expect_check(event_queue_push, data, validate_board_mode_event_data,
                  (uintmax_t)&expected_state);
 

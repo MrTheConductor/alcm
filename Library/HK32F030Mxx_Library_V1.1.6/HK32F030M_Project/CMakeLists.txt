@@ -25,7 +25,7 @@ if(CLANG_TIDY_EXE)
 endif()
 
 # Add the main source code
-add_library(alcm
+add_library(alcm STATIC
     src/animations.c
     src/button_driver.c
     src/button_events.c
@@ -40,26 +40,26 @@ add_library(alcm
     src/vesc_serial.c
 )
 
-add_library(timer
+add_library(timer STATIC
     src/timer.c
 )
 
-add_library(headlights
+add_library(headlights STATIC
     src/headlights.c
     src/function_generator.c
     src/hysteresis.c
 )
 
-add_library(event_queue
+add_library(event_queue STATIC
     src/event_queue.c
 )
 
-add_library(board_mode
+add_library(board_mode STATIC
     src/board_mode.c
     src/hysteresis.c
 )
 
-add_library(status_leds
+add_library(status_leds STATIC
     src/status_leds.c
 )
 

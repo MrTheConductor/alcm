@@ -54,8 +54,6 @@ int buzzer_setup(void **state)
     // Expect the event subscription functions to be called
     expect_value(subscribe_event, event, EVENT_COMMAND_ACK);
     expect_any(subscribe_event, callback);
-    expect_value(subscribe_event, event, EVENT_COMMAND_ACK_2);
-    expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_NACK);
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_TOGGLE_BEEPER);

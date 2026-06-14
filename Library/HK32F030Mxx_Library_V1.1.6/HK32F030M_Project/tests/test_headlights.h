@@ -62,6 +62,8 @@ int headlights_setup(void **state)
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_SETTINGS_CHANGED);
     expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_IMU_PITCH_CHANGED);
+    expect_any(subscribe_event, callback);
 
     headlights_init();
     return 0;

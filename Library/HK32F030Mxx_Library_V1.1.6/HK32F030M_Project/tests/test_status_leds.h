@@ -219,6 +219,9 @@ static void test_status_leds_set_color(void **state)
     assert_int_equal(LCM_ERROR, status_leds_set_color(NULL, 0, STATUS_LEDS_COUNT));
 }
 
+void expect_fill_animation(void);
+void expect_scan_animation(void);
+
 static void test_status_leds_boot(void **state)
 {
     event_data_t data = {0};
@@ -235,15 +238,15 @@ static void test_status_leds_boot(void **state)
     expect_value(fade_animation_setup, callback, NULL);
     expect_function_call(fade_animation_setup);
     will_return(fade_animation_setup, 1U);
+    will_return(vesc_serial_get_imu_roll, 0.0f);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 
-    // Set boot animation to fire
+    // Set boot animation to rainbow mirror
     will_return(board_mode_get, BOARD_MODE_BOOTING);
-    settings->boot_animation = ANIMATION_OPTION_FIRE;
-    expect_any(fire_animation_setup, buffer);
-    expect_function_call(fire_animation_setup);
-    will_return(fire_animation_setup, 1U);
+    settings->boot_animation = ANIMATION_OPTION_RAINBOW_MIRROR;
+    will_return(vesc_serial_get_imu_roll, 0.0f);
+    expect_fill_animation();
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 
@@ -299,6 +302,7 @@ static void test_status_leds_fault(void **state)
     data.board_mode.mode = BOARD_MODE_FAULT;
     data.board_mode.submode = BOARD_SUBMODE_UNDEFINED;
     will_return(board_mode_get, BOARD_MODE_FAULT);
+    will_return(board_submode_get, BOARD_SUBMODE_UNDEFINED);
 
     // Expect a fill animation
     expect_fill_animation();
@@ -383,6 +387,7 @@ static void test_status_leds_idle_dozing(void **state)
     expect_value(fade_animation_setup, callback, NULL);
     expect_function_call(fade_animation_setup);
     will_return(fade_animation_setup, 1U);
+    will_return(vesc_serial_get_imu_roll, 0.0f);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 
@@ -395,6 +400,7 @@ static void test_status_leds_idle_dozing(void **state)
     settings->dozing_animation = ANIMATION_OPTION_RAINBOW_MIRROR;
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
+    will_return(vesc_serial_get_imu_roll, 0.0f);
     expect_fill_animation();
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 

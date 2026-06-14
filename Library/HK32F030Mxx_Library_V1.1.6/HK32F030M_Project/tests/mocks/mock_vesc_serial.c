@@ -47,3 +47,7 @@ float vesc_serial_get_battery_level(void) {
 uint8_t vesc_serial_get_fault(void) {
     return (uint8_t)mock();
 }
+
+float32_t vesc_serial_get_imu_roll(void) {
+    return (float32_t)mock();
+}
