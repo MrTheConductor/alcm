@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!-- Rebuild C library before building this project -->
+  <Target Name="BuildNativeLibrary" BeforeTargets="PreBuildEvent">
+    <Exec Command="cmake --build &quot;$(ProjectDir)..\ALCM.Library\build&quot; --config Debug"
+          IgnoreExitCode="false" WorkingDirectory="$(ProjectDir)..\.." />
+  </Target>
+
+  <ItemGroup>
+    <!-- Shared source files from BoardSimulator (compiled into this assembly, no DLL reference needed) -->
+    <Compile Include="../BoardSimulator/Native/AlcmInterop.cs" />
+    <Compile Include="../BoardSimulator/Services/AlcmWrapper.cs" />
+    <Compile Include="../BoardSimulator/Vesc/Crc16.cs" />
+    <Compile Include="../BoardSimulator/Vesc/VescProtocol.cs" />
+    <Compile Include="../BoardSimulator/Vesc/VescSimulator.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Native DLL must be next to the output exe -->
+    <None Include="../ALCM.Library/build/bin/Debug/ALCM.Library.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('../ALCM.Library/build/bin/Debug/ALCM.Library.dll')" />
+    <!-- Scenario JSON files copied to output -->
+    <None Include="Scenarios/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

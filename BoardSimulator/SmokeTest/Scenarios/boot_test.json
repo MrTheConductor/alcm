@@ -1,0 +1,114 @@
+{
+  // ─────────────────────────────────────────────────────────────────────────
+  // ALCM Power-On Smoke Test
+  //
+  // Scenario format reference:
+  //
+  // Step types:
+  //   "await"    – run until an event matching "event"+"where" fires, or timeout
+  //   "inject"   – set hardware inputs immediately (no time advance)
+  //   "run_for"  – advance simulation for duration_ms, then evaluate checks
+  //
+  // Event types (for "await" and check conditions):
+  //   "power"        – power latch callback  (where: { "enabled": true/false })
+  //   "status_led"   – LED color update       (where: { "r_or_g_or_b_gt": N } or { "led_index": N })
+  //   "headlight"    – headlight callback     (where: { "brightness_gt": N } or { "direction": N })
+  //   "buzzer"       – buzzer callback        (no where filters)
+  //   "vesc_request" – ALCM → VESC request    (no where filters)
+  //   "debug"        – debug string from C    (where: { "contains": "substring" })
+  //
+  // Check types inside "run_for":
+  //   "assert_no"        – no matching event must occur  (FAIL if any matches)
+  //   "assert_count_gte" – at least N matching events    (needs "count": N)
+  //   "assert_any"       – at least one matching event
+  // ─────────────────────────────────────────────────────────────────────────
+
+  "name": "ALCM Power-On Smoke Test",
+  "description": "Boots the ALCM firmware, verifies VESC link, engages the rider, and confirms 2 seconds of stable riding.",
+
+  // Initial VESC state presented to the firmware (simulates a charged battery)
+  "vesc": {
+    "battery_voltage": 58.8
+  },
+
+  "steps": [
+
+    // ─── Phase 1: Boot sequence ────────────────────────────────────────────
+    // After alcm_init(), the firmware posts EVENT_COMMAND_BOOT and begins its
+    // boot sequence.  The power latch, LED animation, and VESC poll timer
+    // should all activate within their respective timeouts.
+
+    {
+      "phase": "Boot sequence",
+      "type": "await",
+      "name": "Power latch engaged",
+      // power.c latches the supply on first boot event
+      "event": "power",
+      "where": { "enabled": true },
+      "timeout_ms": 500
+    },
+    {
+      "type": "await",
+      "name": "Boot LED animation",
+      // status_leds.c starts a boot animation — at least one LED goes non-black
+      "event": "status_led",
+      "where": { "r_or_g_or_b_gt": 0 },
+      "timeout_ms": 1000
+    },
+    {
+      "type": "await",
+      "name": "VESC communication active",
+      // vesc_serial.c sets a repeating 250 ms poll timer during BOOTING;
+      // the first COMM_GET_VALUES_SETUP_SELECTIVE request confirms the link
+      "event": "vesc_request",
+      "timeout_ms": 3000
+    },
+
+    // ─── Phase 2: Rider engagement + sustained riding ──────────────────────
+    // Inject both footpads above the 2.5 V threshold and set VESC RPM so the
+    // firmware transitions IDLE → RIDING_STOPPED → RIDING_SLOW.
+
+    {
+      "phase": "Riding",
+      "type": "inject",
+      "name": "both footpads at 3.0V, RPM = 500",
+      "footpad_left_v": 3.0,
+      "footpad_right_v": 3.0,
+      "rpm": 500
+    },
+    {
+      "type": "run_for",
+      "name": "Sustained riding (2 seconds)",
+      // 2000 ms gives: ~20 footpad samples (100 ms interval)
+      //                ~8  VESC poll cycles (250 ms interval)
+      "duration_ms": 2000,
+      "checks": [
+        {
+          "name": "Power maintained",
+          // Power callback must NOT fire with enabled=false — board must stay on
+          "assert_no": {
+            "event": "power",
+            "where": { "enabled": false }
+          }
+        },
+        {
+          "name": "VESC polling continues",
+          // Firmware must keep polling the VESC throughout the riding window
+          "assert_count_gte": {
+            "event": "vesc_request",
+            "count": 5
+          }
+        },
+        {
+          "name": "Headlights active during riding",
+          // Headlights turn on when IDLE → RIDING (direction = FORWARD = 0)
+          "assert_any": {
+            "event": "headlight",
+            "where": { "brightness_gt": 0 }
+          }
+        }
+      ]
+    }
+
+  ]
+}
