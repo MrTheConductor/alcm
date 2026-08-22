@@ -156,4 +156,92 @@ static inline uint8_t scale8(uint8_t i, uint8_t scale)
     return ((uint16_t)i * (uint16_t)scale) >> 8;
 }
 
+/**
+ * @brief Approximate the absolute value of a float.
+ *
+ * The IEEE-754 absolute value is just clearing the sign bit, so this is
+ * exact and costs only a couple of instructions. Avoids pulling in libm's
+ * fabsf() (and the soft-float runtime on Cortex-M0).
+ *
+ * @param x The value to take the absolute value of.
+ * @return The absolute value of x.
+ */
+static inline float tiny_fabsf(float x)
+{
+    union {
+        uint32_t i;
+        float f;
+    } u;
+    u.f = x;
+    u.i &= 0x7FFFFFFFu;
+    return u.f;
+}
+
+/**
+ * @brief Approximate the square root of a non-negative float.
+ *
+ * This is a rough IEEE-754 "bit hack" square root approximation. It is not
+ * high-precision, but is accurate enough for animation falloff curves. It
+ * avoids linking in libm's sqrtf() (and the soft-float sqrt on Cortex-M0).
+ *
+ * @param x The value to calculate the square root of. Must be >= 0.
+ * @return The approximate square root of x.
+ */
+static inline float tiny_sqrtf(float x)
+{
+    if (x <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    // Classic IEEE-754 bit-hack approximation of sqrt(x).
+    // Operates on the full bit pattern: (1<<29) + (x>>1) - (1<<22).
+    union {
+        uint32_t i;
+        float f;
+    } u;
+    u.f = x;
+    u.i = (1u << 29) + (u.i >> 1) - (1u << 22);
+    float y = u.f;
+
+    // One Newton-Raphson step to improve accuracy
+    y = 0.5f * (y + x / y);
+
+    return y;
+}
+
+/**
+ * @brief Approximate the natural logarithm of a positive float.
+ *
+ * This is a low-precision approximation of ln(x) for x in a modest range,
+ * suitable for animation falloff curves. It avoids linking in libm's logf()
+ * (and the entire soft-float log implementation on Cortex-M0).
+ *
+ * @param x The value to calculate the natural logarithm of. Must be > 0.
+ * @return The approximate natural logarithm of x.
+ */
+static inline float tiny_logf(float x)
+{
+    if (x <= 0.0f)
+    {
+        // Return a large negative value for non-positive input (matches errno
+        // convention without pulling in errno).
+        return -23.0f;
+    }
+
+    // Extract the exponent and normalize the mantissa to [1, 2).
+    union {
+        uint32_t i;
+        float f;
+    } u;
+    u.f = x;
+    int32_t exp = (int32_t)((u.i >> 23) & 0xFFu) - 127;
+    float mantissa = 1.0f + (float)((u.i & 0x007FFFFFu)) / (float)(1 << 23);
+
+    // ln(mantissa) for mantissa in [1, 2): a linear approximation.
+    // ln(x) = ln(mantissa * 2^exp) = ln(mantissa) + exp * ln(2)
+    float ln_mantissa = (mantissa - 1.0f) * (1.0f - 0.5f * (mantissa - 1.0f));
+    return ln_mantissa + (float)exp * 0.6931471805599453f;
+}
+
 #endif

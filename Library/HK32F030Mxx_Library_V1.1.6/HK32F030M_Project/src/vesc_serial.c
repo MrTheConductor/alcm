@@ -362,7 +362,10 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     // Coerce the duty cycle to a valid range
     CLAMP(values.duty_cycle, -100.0f, 100.0f);
 
-    values.rpm = buffer_get_float32(&payload[7], 1.0f);
+    // RPM is an integer quantity in the VESC protocol (scale 1.0), so the
+    // float returned by buffer_get_float32 is truncated to int32_t explicitly
+    // to avoid an implicit float->int conversion warning (C4244).
+    values.rpm = (int32_t)buffer_get_float32(&payload[7], 1.0f);
 
 #if defined(ENABLE_VOLTAGE_MONITORING)
     values.input_voltage = buffer_get_float16(&payload[11], 10.0f);

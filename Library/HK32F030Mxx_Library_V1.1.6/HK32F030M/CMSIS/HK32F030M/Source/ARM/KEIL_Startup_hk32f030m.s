@@ -30,7 +30,9 @@ __initial_sp
 ;   <o>  Heap Size (in Bytes) <0x0-0xFFFFFFFF:8>
 ; </h>
 
-Heap_Size       EQU     0x00000200
+; The ALCM firmware uses no dynamic allocation (malloc/free), so the heap is
+; set to zero to reclaim all of its RAM for .bss/.data globals.
+Heap_Size       EQU     0x00000000
 
                 AREA    HEAP, NOINIT, READWRITE, ALIGN=3
 __heap_base

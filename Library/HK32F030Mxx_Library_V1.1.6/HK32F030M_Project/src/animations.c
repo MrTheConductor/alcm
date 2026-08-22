@@ -177,7 +177,7 @@ float calculate_mu_falloff(float sigma, float threshold)
     {
         return -1.0f; // Invalid threshold
     }
-    return sqrtf(-2.0f * sigma * sigma * logf(threshold));
+    return sigma * tiny_sqrtf(-2.0f * sigma * sigma * tiny_logf(threshold));
 }
 
 /**
@@ -201,9 +201,9 @@ void hsl_to_rgb(float h, float s, float l, status_leds_color_t *color)
     if (color != NULL)
     {
         h = tiny_fmodf(h, 360.0f);
-        float c = (1.0f - fabsf(2.0f * l - 1.0f)) * s; // Chroma
+        float c = (1.0f - tiny_fabsf(2.0f * l - 1.0f)) * s; // Chroma
         float x =
-            c * (1.0f - fabsf(tiny_fmodf(h / 60.0f, 2.0f) - 1.0f)); // Second largest component
+            c * (1.0f - tiny_fabsf(tiny_fmodf(h / 60.0f, 2.0f) - 1.0f)); // Second largest component
         float m = l - c / 2.0f;
 
         float r = 0, g = 0, b = 0;
