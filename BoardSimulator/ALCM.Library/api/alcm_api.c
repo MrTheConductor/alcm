@@ -82,7 +82,7 @@ int alcm_init(void) {
 #endif
     
     INIT(vesc_serial);
-    
+
     // Push boot event (same as main.c)
     event_queue_push(EVENT_COMMAND_BOOT, NULL);
     

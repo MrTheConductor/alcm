@@ -27,6 +27,8 @@ namespace BoardSimulator.ViewModels
         private double _rightFootpadVoltage;
         private double _batteryVoltage = 58.8;
         private double _motorRpm;
+        private double _imuPitch;
+        private double _imuRoll;
         private bool _isRunning;
         private int _timeScale = 1;
         private string _statusText = "Not initialized";
@@ -79,6 +81,30 @@ namespace BoardSimulator.ViewModels
                 if (SetProperty(ref _motorRpm, value))
                 {
                     _vesc.Rpm = (int)value;
+                }
+            }
+        }
+
+        public double ImuPitch
+        {
+            get => _imuPitch;
+            set
+            {
+                if (SetProperty(ref _imuPitch, value))
+                {
+                    _vesc.ImuPitch = (float)value;
+                }
+            }
+        }
+
+        public double ImuRoll
+        {
+            get => _imuRoll;
+            set
+            {
+                if (SetProperty(ref _imuRoll, value))
+                {
+                    _vesc.ImuRoll = (float)value;
                 }
             }
         }
@@ -272,6 +298,8 @@ namespace BoardSimulator.ViewModels
             RightFootpadVoltage = 0;
             BatteryVoltage = 58.8;
             MotorRpm = 0;
+            ImuPitch = 0;
+            ImuRoll = 0;
 
             // Re-initialize ALCM
             Initialize();

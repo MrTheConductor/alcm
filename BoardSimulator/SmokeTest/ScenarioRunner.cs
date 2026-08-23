@@ -147,6 +147,12 @@ class ScenarioRunner
         if (step.TryGetProperty("button_pressed", out var btn))
             _engine.SetButtonState(btn.GetBoolean());
 
+        if (step.TryGetProperty("imu_pitch_deg", out var pitch))
+            _engine.SetImuPitch(pitch.GetSingle());
+
+        if (step.TryGetProperty("imu_roll_deg", out var roll))
+            _engine.SetImuRoll(roll.GetSingle());
+
         Console.WriteLine($"    Inject: {name}");
     }
 

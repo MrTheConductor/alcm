@@ -24,6 +24,11 @@ namespace BoardSimulator.Vesc
         public byte FaultCode { get; set; } = 0;
         public byte VescId { get; set; } = 0;
 
+        // IMU state, in degrees (converted to radians on the wire, matching
+        // vesc_serial.c's RADIANS_TO_DEGREES conversion on receive)
+        public float ImuPitch { get; set; } = 0.0f;
+        public float ImuRoll { get; set; } = 0.0f;
+
         // Event fired when VESC has a response ready
         public event Action<byte[]>? ResponseReady;
 
@@ -49,7 +54,13 @@ namespace BoardSimulator.Vesc
 
         /// <summary>
         /// Handle incoming request from ALCM
-        /// Decodes request and generates appropriate response
+        /// Decodes request and generates appropriate response(s)
+        ///
+        /// When ENABLE_IMU_EVENTS is on, vesc_serial.c's polling timer
+        /// concatenates the COMM_GET_VALUES_SETUP_SELECTIVE and
+        /// COMM_GET_IMU_DATA requests into a single hardware write, so a
+        /// single call here may contain more than one VESC frame. Walk the
+        /// buffer and dispatch each frame found.
         /// </summary>
         public void HandleRequest(byte[] request)
         {
@@ -59,23 +70,46 @@ namespace BoardSimulator.Vesc
                 return;
             }
 
-            // Decode VESC protocol
-            // Expected format:
+            // Frame format:
             // byte 0: start byte (0x02)
-            // byte 1: packet length
+            // byte 1: payload length
             // byte 2: command
             // bytes 3..N: payload
             // bytes N+1,N+2: CRC-16
             // byte N+3: end byte (0x03)
 
-            if (request.Length < 4 || request[0] != 0x02)
+            int offset = 0;
+            while (offset < request.Length)
             {
-                System.Diagnostics.Debug.WriteLine("[VescSimulator] Invalid request packet");
-                return;
+                if (request[offset] != 0x02)
+                {
+                    System.Diagnostics.Debug.WriteLine("[VescSimulator] Invalid request packet (bad start byte)");
+                    return;
+                }
+
+                if (offset + 2 > request.Length)
+                {
+                    System.Diagnostics.Debug.WriteLine("[VescSimulator] Truncated request (missing length byte)");
+                    return;
+                }
+
+                byte payloadLength = request[offset + 1];
+                int frameLength = 2 + payloadLength + 3; // start + length + payload + crc(2) + end
+                if (payloadLength == 0 || offset + frameLength > request.Length)
+                {
+                    System.Diagnostics.Debug.WriteLine("[VescSimulator] Truncated request packet");
+                    return;
+                }
+
+                byte command = request[offset + 2];
+                HandleCommand(command);
+
+                offset += frameLength;
             }
+        }
 
-            byte command = request[2];
-
+        private void HandleCommand(byte command)
+        {
             if (command == 0x33) // COMM_GET_VALUES_SETUP_SELECTIVE
             {
                 // Calculate battery percentage from voltage (67.2V = 100%, 40V = 0%)
@@ -92,13 +126,21 @@ namespace BoardSimulator.Vesc
                 );
 
                 System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM response: {response.Length} bytes (RPM={Rpm}, V={InputVoltage:F1}V, Batt={batteryPercent:F1}%, Duty={DutyCycle:F2})");
-                
+
                 ResponseReady?.Invoke(response);
             }
             else if (command == 0x41) // COMM_GET_IMU_DATA
             {
-                // For now, don't respond to IMU requests (optional feature)
-                System.Diagnostics.Debug.WriteLine("[VescSimulator] IMU request ignored (not implemented)");
+                const float DegToRad = (float)(Math.PI / 180.0);
+
+                byte[] response = VescProtocol.GenerateImuDataMessage(
+                    rollRadians: ImuRoll * DegToRad,
+                    pitchRadians: ImuPitch * DegToRad
+                );
+
+                System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM IMU response: {response.Length} bytes (Pitch={ImuPitch:F1}°, Roll={ImuRoll:F1}°)");
+
+                ResponseReady?.Invoke(response);
             }
             else
             {

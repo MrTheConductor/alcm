@@ -103,6 +103,8 @@ class SmokeTestEngine : IDisposable
     public void SetRpm(int rpm)              => _vesc.Rpm = rpm;
     public void SetBatteryVoltage(float v)   => _vesc.InputVoltage = v;
     public void SetButtonState(bool pressed) => _alcm.SetButtonState(pressed);
+    public void SetImuPitch(float degrees)   => _vesc.ImuPitch = degrees;
+    public void SetImuRoll(float degrees)    => _vesc.ImuRoll = degrees;
 
     /// Advance simulation until <paramref name="predicate"/> matches an event or
     /// <paramref name="timeoutMs"/> of simulated time elapses.

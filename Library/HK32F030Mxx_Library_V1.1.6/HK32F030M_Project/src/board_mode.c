@@ -296,20 +296,29 @@ EVENT_HANDLER(board_mode, command)
         break;
 #ifdef ENABLE_IMU_EVENTS
     case EVENT_IMU_ROLL_CHANGED:
-        if (roll_hysteresis.state != apply_hysteresis(&roll_hysteresis, fabsf(data->imu_roll))) {
-            // If the board is on its side, transition to dozing idle mode
-            if (board_mode == BOARD_MODE_IDLE &&
-                (board_submode == BOARD_SUBMODE_IDLE_ACTIVE || board_submode == BOARD_SUBMODE_IDLE_DEFAULT) &&
-                roll_hysteresis.state == STATE_SET)
-            {
-                set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_DOZING);
-            }
-            // If the board is dozing and turned upright, transition to active idle mode
-            else if (board_mode == BOARD_MODE_IDLE &&
-                    board_submode == BOARD_SUBMODE_IDLE_DOZING &&
-                    roll_hysteresis.state == STATE_RESET)
-            {
-                set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
+        {
+            // Capture the pre-call state before invoking apply_hysteresis, which
+            // mutates roll_hysteresis.state as a side effect. Comparing
+            // roll_hysteresis.state directly against the call's return value is
+            // undefined behavior (unsequenced read/write of the same object).
+            hys_state_t previous_roll_state = roll_hysteresis.state;
+            hys_state_t new_roll_state = apply_hysteresis(&roll_hysteresis, fabsf(data->imu_roll));
+
+            if (previous_roll_state != new_roll_state) {
+                // If the board is on its side, transition to dozing idle mode
+                if (board_mode == BOARD_MODE_IDLE &&
+                    (board_submode == BOARD_SUBMODE_IDLE_ACTIVE || board_submode == BOARD_SUBMODE_IDLE_DEFAULT) &&
+                    new_roll_state == STATE_SET)
+                {
+                    set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_DOZING);
+                }
+                // If the board is dozing and turned upright, transition to active idle mode
+                else if (board_mode == BOARD_MODE_IDLE &&
+                        board_submode == BOARD_SUBMODE_IDLE_DOZING &&
+                        new_roll_state == STATE_RESET)
+                {
+                    set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
+                }
             }
         }
         break;

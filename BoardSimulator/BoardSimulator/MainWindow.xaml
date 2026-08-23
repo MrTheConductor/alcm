@@ -371,11 +371,49 @@
                                 TickFrequency="10"
                                 IsEnabled="{Binding VescEnabled}"
                                 Style="{StaticResource SliderStyle}" />
-                        <TextBlock Grid.Column="2" 
-                                   Text="{Binding MotorRpm, StringFormat={}{0:F0}}" 
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding MotorRpm, StringFormat={}{0:F0}}"
                                    Style="{StaticResource ValueLabelStyle}" />
                     </Grid>
-                    
+
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="IMU Pitch:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1"
+                                Minimum="-90"
+                                Maximum="90"
+                                Value="{Binding ImuPitch}"
+                                TickFrequency="1"
+                                IsEnabled="{Binding VescEnabled}"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding ImuPitch, StringFormat={}{0:F1}°}"
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="IMU Roll:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1"
+                                Minimum="-180"
+                                Maximum="180"
+                                Value="{Binding ImuRoll}"
+                                TickFrequency="1"
+                                IsEnabled="{Binding VescEnabled}"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding ImuRoll, StringFormat={}{0:F1}°}"
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+
                     <!-- Quick Presets -->
                     <TextBlock Text="Quick Actions" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
                     

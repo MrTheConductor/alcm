@@ -21,6 +21,7 @@ namespace BoardSimulator.Vesc
         {
             COMM_GET_VALUES = 4,
             COMM_GET_VALUES_SELECTIVE = 50,
+            COMM_GET_IMU_DATA = 65,
         }
 
         /// <summary>
@@ -124,6 +125,39 @@ namespace BoardSimulator.Vesc
             }
 
             // Build packet with framing and CRC
+            return BuildPacket(payload);
+        }
+
+        /// <summary>
+        /// Generates a COMM_GET_IMU_DATA response packet (command 0x41)
+        /// This is what ALCM requests (with ENABLE_IMU_EVENTS) alongside its
+        /// selective polling, mask 0x0003 (bit0=roll, bit1=pitch), matching
+        /// COMM_GET_IMU_DATA_MASK in vesc_serial.c. Roll/pitch are unscaled
+        /// IEEE-754 floats in radians - the firmware converts to degrees.
+        /// The firmware only reads the first 11 bytes of the payload but
+        /// requires a 12-byte length (COMM_GET_IMU_DATA_RESPONSE_LENGTH), so
+        /// a trailing reserved/padding byte is appended.
+        /// </summary>
+        public static byte[] GenerateImuDataMessage(float rollRadians, float pitchRadians)
+        {
+            using var ms = new MemoryStream();
+            using var writer = new BinaryWriter(ms);
+
+            writer.Write((byte)CommPacketId.COMM_GET_IMU_DATA);
+            WriteInt16(writer, 0x0003); // mask: bit0=roll, bit1=pitch
+
+            WriteFloat32(writer, rollRadians);
+            WriteFloat32(writer, pitchRadians);
+
+            writer.Write((byte)0); // reserved/padding byte
+
+            byte[] payload = ms.ToArray();
+
+            if (payload.Length != 12)
+            {
+                throw new InvalidOperationException($"IMU data payload must be 12 bytes, got {payload.Length}");
+            }
+
             return BuildPacket(payload);
         }
 
