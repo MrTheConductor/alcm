@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -27,5 +27,6 @@ void event_queue_test_bad_event(event_type_t expected, event_type_t actual, cons
 // Validation functions
 int validate_footpads_state(const uintmax_t data, const uintmax_t check_data);
 int validate_board_mode_event_data(const uintmax_t data, const uintmax_t check_data);
+int validate_context_event_data(const uintmax_t data, const uintmax_t check_data);
 
 #endif

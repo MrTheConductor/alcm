@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -135,6 +135,14 @@
 //
 // This can be undefined to save code space if IMU features are not wanted.
 #define ENABLE_IMU_EVENTS 1 // Enable IMU events
+
+//------------------------------------------------------------------------------
+// App integration configuration
+//------------------------------------------------------------------------------
+// Allows phone apps that talk to the refloat VESC package to control
+// headlight and status bar brightness remotely, by polling refloat's
+// COMMAND_LCM_POLL custom app data command over the existing VESC UART link.
+#define ENABLE_APP_INTEGRATION 1 // Enable phone-app brightness control via refloat
 
 //------------------------------------------------------------------------------
 // Debug configuration

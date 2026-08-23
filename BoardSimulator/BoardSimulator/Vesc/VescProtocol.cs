@@ -22,7 +22,12 @@ namespace BoardSimulator.Vesc
             COMM_GET_VALUES = 4,
             COMM_GET_VALUES_SELECTIVE = 50,
             COMM_GET_IMU_DATA = 65,
+            COMM_CUSTOM_APP_DATA = 36,
         }
+
+        // refloat's custom app data protocol (see refloat/src/lcm.h)
+        private const byte LcmPackageId = 101;
+        private const byte LcmCommandPoll = 24;
 
         /// <summary>
         /// Generates a COMM_GET_VALUES response packet
@@ -159,6 +164,46 @@ namespace BoardSimulator.Vesc
             }
 
             return BuildPacket(payload);
+        }
+
+        /// <summary>
+        /// Generates a COMM_CUSTOM_APP_DATA / COMMAND_LCM_POLL response packet
+        /// (command 0x24), matching refloat's lcm_poll_response() format
+        /// (refloat/src/lcm.c) that ALCM's process_comm_custom_app_data()
+        /// (vesc_serial.c) parses. ALCM only reads the trailing brightness
+        /// bytes (offsets 12/13/14), so the state/fault/duty/erpm/current/
+        /// voltage fields ahead of them are written as zero. When `enabled`
+        /// is false, only the 2-byte package/command header is sent, mirroring
+        /// refloat's behavior when hardware.leds.mode has External LEDs
+        /// disabled - a valid protocol state, not an error.
+        /// </summary>
+        public static byte[] GenerateLcmPollResponseMessage(
+            bool enabled,
+            byte headlightBrightnessPercent,
+            byte headlightIdleBrightnessPercent,
+            byte statusBrightnessPercent)
+        {
+            using var ms = new MemoryStream();
+            using var writer = new BinaryWriter(ms);
+
+            writer.Write((byte)CommPacketId.COMM_CUSTOM_APP_DATA);
+            writer.Write(LcmPackageId);
+            writer.Write(LcmCommandPoll);
+
+            if (enabled)
+            {
+                writer.Write((byte)0); // state (unused by ALCM)
+                writer.Write((byte)0); // fault (unused by ALCM)
+                writer.Write((byte)0); // duty/pitch (unused by ALCM)
+                WriteInt16(writer, 0); // erpm (unused by ALCM)
+                WriteInt16(writer, 0); // avg input current (unused by ALCM)
+                WriteInt16(writer, 0); // input voltage (unused by ALCM)
+                writer.Write(headlightBrightnessPercent);
+                writer.Write(headlightIdleBrightnessPercent);
+                writer.Write(statusBrightnessPercent);
+            }
+
+            return BuildPacket(ms.ToArray());
         }
 
         /// <summary>

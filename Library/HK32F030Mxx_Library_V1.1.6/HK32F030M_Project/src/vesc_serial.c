@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -26,6 +26,10 @@
 #include "lcm_types.h"
 #include "interrupts.h"
 #include "tiny_math.h"
+#ifdef ENABLE_APP_INTEGRATION
+#include "settings.h"
+#include "command_processor.h"
+#endif
 
 // Values from VESC datatypes.h
 #define COMM_GET_VALUES_SETUP_SELECTIVE 51
@@ -34,8 +38,24 @@
 
 #ifdef ENABLE_IMU_EVENTS
 #define COMM_GET_IMU_DATA 65
-#define COMM_GET_IMU_DATA_RESPONSE_LENGTH 12 
-#define COMM_GET_IMU_DATA_MASK 0x03 
+#define COMM_GET_IMU_DATA_RESPONSE_LENGTH 12
+#define COMM_GET_IMU_DATA_MASK 0x03
+#endif
+
+#ifdef ENABLE_APP_INTEGRATION
+/* refloat's custom app data protocol (COMM_CUSTOM_APP_DATA), used to relay
+ * phone-app-controlled headlight/status bar brightness. See
+ * refloat/src/lcm.h (LcmCommands) and refloat/src/lcm.c
+ * (lcm_poll_response()) for the authoritative definition. */
+#define COMM_CUSTOM_APP_DATA 36
+#define LCM_PACKAGE_ID 101
+#define LCM_COMMAND_POLL 24
+#define LCM_POLL_RESPONSE_MIN_LENGTH 15
+#define LCM_POLL_HEADLIGHT_BRIGHTNESS_OFFSET 12
+#define LCM_POLL_STATUS_BRIGHTNESS_OFFSET 14
+/* Sentinel baseline value (out of the valid 0-100 range) meaning "no poll
+ * reply has been seen yet for this channel". */
+#define LCM_BASELINE_UNSET 0xFFU
 #endif
 
 #define SERIAL_BAUDRATE 115200U
@@ -80,6 +100,10 @@ static uint8_t vesc_serial_outstaning_packet_count = 0;
 static vesc_serial_callback_t vesc_serial_callback = NULL;
 #ifdef ENABLE_IMU_EVENTS
 static comm_get_imu_data_t comm_get_imu_data = {0};
+#endif
+#ifdef ENABLE_APP_INTEGRATION
+static uint8_t headlight_remote_baseline = LCM_BASELINE_UNSET;
+static uint8_t status_remote_baseline = LCM_BASELINE_UNSET;
 #endif
 
 // Forward declarations
@@ -429,6 +453,81 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     }
 }
 
+#ifdef ENABLE_APP_INTEGRATION
+/**
+ * @brief Applies a single refloat-reported brightness channel if it changed
+ *
+ * Shared by both the headlight and status bar channels of
+ * process_comm_custom_app_data(). A channel's baseline starts at
+ * LCM_BASELINE_UNSET (out of the valid 0-100 range); the first sample just
+ * records the baseline without touching the setting, so a poll reply that
+ * merely confirms refloat's already-applied value never re-fires an event.
+ * Only a genuine change from the last-seen remote value is applied, which is
+ * what lets local button/footpad adjustments stick between polls instead of
+ * being overwritten by refloat re-reporting the same value it always has.
+ *
+ * @param baseline Last remote value seen for this channel (persists across calls)
+ * @param new_pct New value from the wire, 0-100 (clamped defensively)
+ * @param setting Settings field to update (0.0-1.0 fraction)
+ * @param context Context to report on EVENT_COMMAND_SETTINGS_CHANGED
+ */
+static void apply_lcm_brightness(uint8_t *baseline, uint8_t new_pct, float32_t *setting,
+                                  command_processor_context_t context)
+{
+    if (new_pct > 100U)
+    {
+        new_pct = 100U;
+    }
+
+    if (new_pct != *baseline)
+    {
+        bool_t first_sample = (*baseline > 100U);
+        *baseline = new_pct;
+
+        if (!first_sample)
+        {
+            event_data_t data = {0};
+
+            *setting = (float32_t)new_pct / 100.0f;
+            data.context = context;
+            event_queue_push(EVENT_COMMAND_SETTINGS_CHANGED, &data);
+        }
+    }
+}
+
+/**
+ * @brief Processes a COMM_CUSTOM_APP_DATA packet
+ *
+ * Looks for refloat's COMMAND_LCM_POLL response and relays any change in the
+ * reported headlight/status bar brightness into the local settings. A
+ * response shorter than expected, or one that doesn't match the expected
+ * package/command id, is a valid protocol state (e.g. refloat's external LED
+ * support is disabled) rather than an error, so it is silently ignored.
+ *
+ * @param payload The payload of the packet
+ * @param packet_length The length of the packet
+ */
+void process_comm_custom_app_data(const uint8_t *payload, uint8_t packet_length)
+{
+    settings_t *settings;
+
+    if (packet_length < LCM_POLL_RESPONSE_MIN_LENGTH || payload[1] != LCM_PACKAGE_ID ||
+        payload[2] != LCM_COMMAND_POLL)
+    {
+        return;
+    }
+
+    settings = settings_get();
+
+    apply_lcm_brightness(&headlight_remote_baseline, payload[LCM_POLL_HEADLIGHT_BRIGHTNESS_OFFSET],
+                          &settings->headlight_brightness,
+                          COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS);
+    apply_lcm_brightness(&status_remote_baseline, payload[LCM_POLL_STATUS_BRIGHTNESS_OFFSET],
+                          &settings->status_brightness,
+                          COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS);
+}
+#endif
+
 /**
  * @brief Processes a VESC packet
  *
@@ -455,6 +554,11 @@ void process_packet(uint8_t *payload, uint8_t packet_length)
 #ifdef ENABLE_IMU_EVENTS
     case COMM_GET_IMU_DATA:
         process_comm_get_imu_data(payload, packet_length);
+        break;
+#endif
+#ifdef ENABLE_APP_INTEGRATION
+    case COMM_CUSTOM_APP_DATA:
+        process_comm_custom_app_data(payload, packet_length);
         break;
 #endif
     default:
@@ -585,10 +689,11 @@ EVENT_HANDLER(vesc_serial, board_mode_change)
 TIMER_CALLBACK(vesc_serial, tx)
 {
     /*
-     * This packet is used to poll the VESC for data.  Since it is
-     * called repeatedly and the data never changes, we can just
-     * hardcode the message to save time and reduce code complexity.
-     * 
+     * These packets are used to poll the VESC for data.  Since they are
+     * sent repeatedly and never change, we can just hardcode each segment
+     * to save time and reduce code complexity. The segments are
+     * concatenated into a single UART write, one per optional feature.
+     *
      * COMM_GET_VALUES_SETUP_SELECTIVE:
      * byte 0: start byte (0x02)
      * byte 1: packet length (0x05)
@@ -601,22 +706,44 @@ TIMER_CALLBACK(vesc_serial, tx)
      *   int 8: fault (1<<16)
      * bytes 7-8 precomputed crc-16-ccitt (0x41e6)
      * byte 9: end byte (0x03)
-     * 
-     * COMM_GET_IMU_DATA (optional): 
-     * byte 10: start byte (0x02)
-     * byte 11: packet length (0x03)
-     * byte 12: command (0x41)
-     * bytes 13-14: mask (0x0003) (u32)
+     *
+     * COMM_GET_IMU_DATA (optional):
+     * byte 0: start byte (0x02)
+     * byte 1: packet length (0x03)
+     * byte 2: command (0x41)
+     * bytes 3-4: mask (0x0003) (u32)
      *  float 32: roll (1<<0)
-     *  float 32: pitch (1<<1) 
-     * bytes 15-16 precomputed crc-16-ccitt (0x1afe)
-     * byte 17: end byte (0x03)
+     *  float 32: pitch (1<<1)
+     * bytes 5-6 precomputed crc-16-ccitt (0x1afe)
+     * byte 7: end byte (0x03)
+     *
+     * COMM_CUSTOM_APP_DATA / COMMAND_LCM_POLL (optional):
+     * byte 0: start byte (0x02)
+     * byte 1: packet length (0x03)
+     * byte 2: command (0x24 = COMM_CUSTOM_APP_DATA, 36)
+     * byte 3: refloat package id (0x65 = 101)
+     * byte 4: refloat command id (0x18 = COMMAND_LCM_POLL, 24)
+     * bytes 5-6 precomputed crc-16-ccitt (0x3de0)
+     * byte 7: end byte (0x03)
      */
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_IMU_EVENTS) && defined(ENABLE_APP_INTEGRATION)
+#define BYTE_LENGTH 26U
+    uint8_t buffer[BYTE_LENGTH] = {
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
+        0x02, 0x03, 0x41, 0x00, 0x03, 0x1a, 0xfe, 0x03,
+        0x02, 0x03, 0x24, 0x65, 0x18, 0x3d, 0xe0, 0x03
+    };
+#elif defined(ENABLE_IMU_EVENTS)
 #define BYTE_LENGTH 18U
     uint8_t buffer[BYTE_LENGTH] = {
         0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
         0x02, 0x03, 0x41, 0x00, 0x03, 0x1a, 0xfe, 0x03
+    };
+#elif defined(ENABLE_APP_INTEGRATION)
+#define BYTE_LENGTH 18U
+    uint8_t buffer[BYTE_LENGTH] = {
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
+        0x02, 0x03, 0x24, 0x65, 0x18, 0x3d, 0xe0, 0x03
     };
 #else
 #define BYTE_LENGTH 10U

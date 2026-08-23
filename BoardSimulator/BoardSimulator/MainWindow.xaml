@@ -414,6 +414,68 @@
                                    Style="{StaticResource ValueLabelStyle}" />
                     </Grid>
 
+                    <!-- Fake Phone App (refloat COMMAND_LCM_POLL simulator) -->
+                    <TextBlock Text="Phone App (refloat)" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
+
+                    <CheckBox IsChecked="{Binding RefloatInstalled}"
+                              Foreground="#CCCCCC"
+                              Margin="0,0,0,10">
+                        <TextBlock>
+                            <Run Text="Refloat Installed" FontWeight="SemiBold" />
+                            <LineBreak />
+                            <Run Text="When off, the VESC doesn't reply to app data at all" FontSize="10" Foreground="#999999" />
+                        </TextBlock>
+                    </CheckBox>
+
+                    <CheckBox IsChecked="{Binding ExternalLedsEnabled}"
+                              IsEnabled="{Binding RefloatInstalled}"
+                              Foreground="#CCCCCC"
+                              Margin="0,0,0,10">
+                        <TextBlock>
+                            <Run Text="External LED Module Enabled" FontWeight="SemiBold" />
+                            <LineBreak />
+                            <Run Text="When off, refloat replies but sends no brightness data" FontSize="10" Foreground="#999999" />
+                        </TextBlock>
+                    </CheckBox>
+
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Headlight:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1"
+                                Minimum="0"
+                                Maximum="100"
+                                Value="{Binding AppHeadlightBrightness}"
+                                TickFrequency="1"
+                                IsEnabled="{Binding RefloatInstalled}"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding AppHeadlightBrightness, StringFormat={}{0:F0}%}"
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Status Bar:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1"
+                                Minimum="0"
+                                Maximum="100"
+                                Value="{Binding AppStatusBrightness}"
+                                TickFrequency="1"
+                                IsEnabled="{Binding RefloatInstalled}"
+                                Style="{StaticResource SliderStyle}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding AppStatusBrightness, StringFormat={}{0:F0}%}"
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+
                     <!-- Quick Presets -->
                     <TextBlock Text="Quick Actions" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
                     

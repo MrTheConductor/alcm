@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -25,6 +25,8 @@
 #include <stddef.h>
 
 #include "vesc_serial.h"
+#include "settings.h"
+#include "command_processor.h"
 
 int vesc_serial_setup(void **state)
 {
@@ -315,6 +317,174 @@ void test_vesc_serial_comm_setup_wrong_size(void **state)
     event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &data);
 }
 
+/**
+ * @brief Exercises refloat's COMMAND_LCM_POLL app-integration relay.
+ *
+ * Covers: baseline establishment on the first poll reply (no apply),
+ * a repeated/unchanged reply (no apply, "sticks"), a changed headlight
+ * brightness (applied + event, status untouched), a changed status
+ * brightness (applied + event, headlight untouched), a too-short reply,
+ * and a reply with the wrong refloat package id (both ignored, no crash,
+ * no events, previously-applied values untouched).
+ */
+void test_vesc_serial_app_integration(void **state)
+{
+    (void)state; // Unused
+
+    ring_buffer_t *rx_buffer = vesc_serial_get_rx_buffer();
+    settings_t *settings = settings_get();
+    event_data_t rx_event_data = {0};
+
+    // Sentinel values, distinct from any brightness percentage used below,
+    // so we can tell "untouched" apart from "applied".
+    settings->headlight_brightness = -1.0f;
+    settings->status_brightness = -1.0f;
+
+    // Packet 1: baseline poll response (headlight=50%, status=30%). This is
+    // also the first valid packet, so it raises EVENT_VESC_ALIVE. Since this
+    // only establishes the remote baseline, no settings should be applied.
+    {
+        uint8_t payload[] = {0x24, 0x65, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 20, 30};
+
+        expect_value(event_queue_push, event, EVENT_VESC_ALIVE);
+        expect_any(event_queue_push, data);
+
+        ring_buffer_push(rx_buffer, 0x02);
+        ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+        for (size_t i = 0; i < sizeof(payload); i++)
+        {
+            ring_buffer_push(rx_buffer, payload[i]);
+        }
+        ring_buffer_push(rx_buffer, 0xbc);
+        ring_buffer_push(rx_buffer, 0x71);
+        ring_buffer_push(rx_buffer, 0x03);
+
+        event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+    }
+
+    assert_float_equal(-1.0f, settings->headlight_brightness, 0.0f);
+    assert_float_equal(-1.0f, settings->status_brightness, 0.0f);
+
+    // Packet 2: identical values repeated - matches the baseline, so nothing
+    // should be applied and no events should fire.
+    {
+        uint8_t payload[] = {0x24, 0x65, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 20, 30};
+
+        ring_buffer_push(rx_buffer, 0x02);
+        ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+        for (size_t i = 0; i < sizeof(payload); i++)
+        {
+            ring_buffer_push(rx_buffer, payload[i]);
+        }
+        ring_buffer_push(rx_buffer, 0xbc);
+        ring_buffer_push(rx_buffer, 0x71);
+        ring_buffer_push(rx_buffer, 0x03);
+
+        event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+    }
+
+    assert_float_equal(-1.0f, settings->headlight_brightness, 0.0f);
+    assert_float_equal(-1.0f, settings->status_brightness, 0.0f);
+
+    // Packet 3: headlight brightness changes to 70% (status unchanged) -
+    // should apply and fire EVENT_COMMAND_SETTINGS_CHANGED for the
+    // headlight brightness context only.
+    {
+        uint8_t payload[] = {0x24, 0x65, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 70, 20, 30};
+        command_processor_context_t expected_context = COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS;
+
+        expect_value(event_queue_push, event, EVENT_COMMAND_SETTINGS_CHANGED);
+        expect_check(event_queue_push, data, validate_context_event_data,
+                     (uintmax_t)&expected_context);
+
+        ring_buffer_push(rx_buffer, 0x02);
+        ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+        for (size_t i = 0; i < sizeof(payload); i++)
+        {
+            ring_buffer_push(rx_buffer, payload[i]);
+        }
+        ring_buffer_push(rx_buffer, 0xb8);
+        ring_buffer_push(rx_buffer, 0xb9);
+        ring_buffer_push(rx_buffer, 0x03);
+
+        event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+    }
+
+    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
+    assert_float_equal(-1.0f, settings->status_brightness, 0.0f);
+
+    // Packet 4: status bar brightness changes to 60% (headlight unchanged
+    // from its new 70% baseline) - should apply and fire
+    // EVENT_COMMAND_SETTINGS_CHANGED for the status bar context only.
+    {
+        uint8_t payload[] = {0x24, 0x65, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 70, 20, 60};
+        command_processor_context_t expected_context = COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS;
+
+        expect_value(event_queue_push, event, EVENT_COMMAND_SETTINGS_CHANGED);
+        expect_check(event_queue_push, data, validate_context_event_data,
+                     (uintmax_t)&expected_context);
+
+        ring_buffer_push(rx_buffer, 0x02);
+        ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+        for (size_t i = 0; i < sizeof(payload); i++)
+        {
+            ring_buffer_push(rx_buffer, payload[i]);
+        }
+        ring_buffer_push(rx_buffer, 0xbc);
+        ring_buffer_push(rx_buffer, 0x99);
+        ring_buffer_push(rx_buffer, 0x03);
+
+        event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+    }
+
+    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
+    assert_float_equal(0.60f, settings->status_brightness, 0.001f);
+
+    // Packet 5: too short to contain the status brightness byte - should be
+    // ignored entirely (no crash, no events, no change to either setting).
+    {
+        uint8_t payload[] = {0x24, 0x65, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 70, 20};
+
+        ring_buffer_push(rx_buffer, 0x02);
+        ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+        for (size_t i = 0; i < sizeof(payload); i++)
+        {
+            ring_buffer_push(rx_buffer, payload[i]);
+        }
+        ring_buffer_push(rx_buffer, 0x8e);
+        ring_buffer_push(rx_buffer, 0x3b);
+        ring_buffer_push(rx_buffer, 0x03);
+
+        event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+    }
+
+    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
+    assert_float_equal(0.60f, settings->status_brightness, 0.001f);
+
+    // Packet 6: wrong refloat package id (not 101) - should be ignored
+    // entirely (no crash, no events, no change to either setting).
+    {
+        uint8_t payload[] = {0x24, 0x63, 0x18, 0, 0, 0, 0, 0, 0, 0, 0, 0, 70, 20, 60};
+
+        ring_buffer_push(rx_buffer, 0x02);
+        ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+        for (size_t i = 0; i < sizeof(payload); i++)
+        {
+            ring_buffer_push(rx_buffer, payload[i]);
+        }
+        ring_buffer_push(rx_buffer, 0xb7);
+        ring_buffer_push(rx_buffer, 0xfe);
+        ring_buffer_push(rx_buffer, 0x03);
+
+        event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+    }
+
+    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
+    assert_float_equal(0.60f, settings->status_brightness, 0.001f);
+
+    assert_true(ring_buffer_is_empty(rx_buffer));
+}
+
 const struct CMUnitTest vesc_serial_tests[] = {
     cmocka_unit_test_setup(test_vesc_serial_timer, vesc_serial_setup),
     cmocka_unit_test_setup(test_vesc_serial_timer_callback, vesc_serial_setup),
@@ -327,6 +497,7 @@ const struct CMUnitTest vesc_serial_tests[] = {
     cmocka_unit_test_setup(test_vesc_serial_crc_invalid, vesc_serial_setup),
     cmocka_unit_test_setup(test_vesc_serial_unknown_command, vesc_serial_setup),
     cmocka_unit_test_setup(test_vesc_serial_comm_setup_wrong_size, vesc_serial_setup),
+    cmocka_unit_test_setup(test_vesc_serial_app_integration, vesc_serial_setup),
 };
 
 #endif

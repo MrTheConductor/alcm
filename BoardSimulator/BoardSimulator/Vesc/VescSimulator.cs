@@ -29,6 +29,25 @@ namespace BoardSimulator.Vesc
         public float ImuPitch { get; set; } = 0.0f;
         public float ImuRoll { get; set; } = 0.0f;
 
+        // refloat app-integration state (COMMAND_LCM_POLL), simulating the
+        // phone app's headlight/status brightness sliders.
+        //
+        // RefloatInstalled simulates a VESC that doesn't run refloat at all
+        // (an older/stock firmware, or a different balance app) - when
+        // false, the VESC doesn't respond to COMM_CUSTOM_APP_DATA at all,
+        // exactly like any other command it doesn't recognize.
+        //
+        // ExternalLedsEnabled mirrors refloat's own hardware.leds.mode
+        // setting having "External" checked - refloat IS installed and
+        // responds, but when this is off it only sends the 2-byte
+        // package/command header (no brightness bytes), matching
+        // lcm_poll_response()'s behavior when lcm->enabled is false.
+        public bool RefloatInstalled { get; set; } = true;
+        public bool ExternalLedsEnabled { get; set; } = true;
+        public byte HeadlightBrightnessPercent { get; set; } = 50;
+        public byte HeadlightIdleBrightnessPercent { get; set; } = 20;
+        public byte StatusBrightnessPercent { get; set; } = 50;
+
         // Event fired when VESC has a response ready
         public event Action<byte[]>? ResponseReady;
 
@@ -101,15 +120,18 @@ namespace BoardSimulator.Vesc
                     return;
                 }
 
-                byte command = request[offset + 2];
-                HandleCommand(command);
+                byte[] payload = new byte[payloadLength];
+                Array.Copy(request, offset + 2, payload, 0, payloadLength);
+                HandleCommand(payload);
 
                 offset += frameLength;
             }
         }
 
-        private void HandleCommand(byte command)
+        private void HandleCommand(byte[] payload)
         {
+            byte command = payload[0];
+
             if (command == 0x33) // COMM_GET_VALUES_SETUP_SELECTIVE
             {
                 // Calculate battery percentage from voltage (67.2V = 100%, 40V = 0%)
@@ -141,6 +163,37 @@ namespace BoardSimulator.Vesc
                 System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM IMU response: {response.Length} bytes (Pitch={ImuPitch:F1}°, Roll={ImuRoll:F1}°)");
 
                 ResponseReady?.Invoke(response);
+            }
+            else if (command == 0x24) // COMM_CUSTOM_APP_DATA
+            {
+                if (!RefloatInstalled)
+                {
+                    // Simulates a VESC running firmware that doesn't understand
+                    // COMM_CUSTOM_APP_DATA at all - no reply of any kind.
+                    System.Diagnostics.Debug.WriteLine("[VescSimulator] refloat not installed, ignoring COMM_CUSTOM_APP_DATA");
+                }
+                // refloat's custom app data protocol: byte 1 is the package
+                // id (101 for refloat), byte 2 is the command id. ALCM only
+                // ever sends COMMAND_LCM_POLL (24); anything else is ignored,
+                // matching real refloat behavior of not responding to
+                // commands it doesn't recognize.
+                else if (payload.Length >= 3 && payload[1] == 101 && payload[2] == 24) // COMMAND_LCM_POLL
+                {
+                    byte[] response = VescProtocol.GenerateLcmPollResponseMessage(
+                        enabled: ExternalLedsEnabled,
+                        headlightBrightnessPercent: HeadlightBrightnessPercent,
+                        headlightIdleBrightnessPercent: HeadlightIdleBrightnessPercent,
+                        statusBrightnessPercent: StatusBrightnessPercent
+                    );
+
+                    System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM LCM poll response: {response.Length} bytes (external_leds={ExternalLedsEnabled}, headlight={HeadlightBrightnessPercent}%, idle={HeadlightIdleBrightnessPercent}%, status={StatusBrightnessPercent}%)");
+
+                    ResponseReady?.Invoke(response);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("[VescSimulator] Unrecognized COMM_CUSTOM_APP_DATA command, ignoring");
+                }
             }
             else
             {

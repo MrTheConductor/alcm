@@ -34,6 +34,10 @@ namespace BoardSimulator.ViewModels
         private string _statusText = "Not initialized";
         private bool _isButtonPressed;
         private bool _vescEnabled = true;
+        private bool _refloatInstalled = true;
+        private bool _externalLedsEnabled = true;
+        private double _appHeadlightBrightness = 50;
+        private double _appStatusBrightness = 50;
         private int _tickCounter = 0;
         private int _eventCounter = 0;
 
@@ -157,6 +161,55 @@ namespace BoardSimulator.ViewModels
                         _vesc.Disable();
                         System.Diagnostics.Debug.WriteLine("[MainViewModel] VESC disabled - will not respond to requests");
                     }
+                }
+            }
+        }
+
+        // Fake phone app (refloat COMMAND_LCM_POLL simulator)
+        public bool RefloatInstalled
+        {
+            get => _refloatInstalled;
+            set
+            {
+                if (SetProperty(ref _refloatInstalled, value))
+                {
+                    _vesc.RefloatInstalled = value;
+                }
+            }
+        }
+
+        public bool ExternalLedsEnabled
+        {
+            get => _externalLedsEnabled;
+            set
+            {
+                if (SetProperty(ref _externalLedsEnabled, value))
+                {
+                    _vesc.ExternalLedsEnabled = value;
+                }
+            }
+        }
+
+        public double AppHeadlightBrightness
+        {
+            get => _appHeadlightBrightness;
+            set
+            {
+                if (SetProperty(ref _appHeadlightBrightness, value))
+                {
+                    _vesc.HeadlightBrightnessPercent = (byte)value;
+                }
+            }
+        }
+
+        public double AppStatusBrightness
+        {
+            get => _appStatusBrightness;
+            set
+            {
+                if (SetProperty(ref _appStatusBrightness, value))
+                {
+                    _vesc.StatusBrightnessPercent = (byte)value;
                 }
             }
         }

@@ -1006,6 +1006,7 @@ EVENT_HANDLER(status_leds, command)
         {
         case COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS:
             status_leds_hw_set_brightness(status_leds_settings->status_brightness);
+            status_leds_refresh();
             break;
         case COMMAND_PROCESSOR_CONTEXT_BOOT_ANIMATION:
             status_leds_start_animation_option(status_leds_settings->boot_animation);
