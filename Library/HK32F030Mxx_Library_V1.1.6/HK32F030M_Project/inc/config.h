@@ -57,7 +57,11 @@
 // Event queue configuration 
 //------------------------------------------------------------------------------
 #define EVENT_QUEUE_SIZE 8U   // Maximum number of events in the queue
-#define MAX_SUBSCRIPTIONS 32U // Maximum number of event subscribers
+// Overflow subscriber slots, used only by events with more than one
+// subscriber (each event's first subscriber lives in a dedicated head slot).
+// Currently 17 are in use (43 subscriptions across 26 distinct events);
+// exceeding this faults loudly at init with EMERGENCY_FAULT_OVERFLOW.
+#define MAX_SUBSCRIPTIONS 20U
 #define MAX_TIMERS 8U         // Maximum number of system timers
 
 // Headlights configuration

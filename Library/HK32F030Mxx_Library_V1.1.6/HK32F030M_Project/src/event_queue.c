@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -22,17 +22,9 @@
 #include "config.h"
 #include "interrupts.h"
 
-/**
- * @brief Event queue data structure
- */
-typedef struct
-{
-    event_type_t event; // The type of event
-    void (*callback)(
-        event_type_t,
-        const event_data_t *); // The callback function to be called when the event occurs
-    uint8_t next;              // The next subscriber in the list
-} subscriber_struct_t;
+// Total subscriber slots: one head slot per event plus overflow slots for
+// events with multiple subscribers
+#define SUBSCRIBER_TABLE_SIZE ((uint8_t)NUMBER_OF_EVENTS + MAX_SUBSCRIPTIONS)
 
 // Note: These are volatile because ISRs can push events to the queue
 static volatile uint8_t event_queue_head = 0U;
@@ -40,13 +32,18 @@ static volatile uint8_t event_queue_tail = 0U;
 static volatile event_struct_t event_queue[EVENT_QUEUE_SIZE] = {0};
 
 /**
- * @breif The subscriber list
+ * @brief The subscriber list
  *
- * @note This is a static array of subscribers. The first NUMBER_OF_EVENTS
- *       subscribers are the first subscribers for each event. The rest are
- *       free for additional subscribers.
+ * @note The first NUMBER_OF_EVENTS slots are the head subscriber for each
+ *       event (indexed directly by event id). The rest are overflow slots for
+ *       events with more than one subscriber, linked through
+ *       subscriber_next. Kept as parallel arrays rather than an array of
+ *       structs: a struct holding a pointer and a uint8_t link pads to 8
+ *       bytes per entry, while the split arrays cost 5 - and the event id
+ *       needs no storage at all since head slots are indexed by it.
  */
-static subscriber_struct_t subscribers[(uint8_t)NUMBER_OF_EVENTS + MAX_SUBSCRIPTIONS] = {0};
+static void (*subscriber_callbacks[SUBSCRIBER_TABLE_SIZE])(event_type_t, const event_data_t *);
+static uint8_t subscriber_next[SUBSCRIBER_TABLE_SIZE] = {0};
 static uint8_t next_subscriber_index = (uint8_t)NUMBER_OF_EVENTS;
 
 /**
@@ -58,8 +55,8 @@ lcm_status_t event_queue_init(void)
     event_queue_tail = 0U;
     next_subscriber_index = (uint8_t)NUMBER_OF_EVENTS;
     memset((void *)event_queue, 0, sizeof(event_struct_t) * EVENT_QUEUE_SIZE);
-    memset((void *)subscribers, 0,
-           sizeof(subscriber_struct_t) * ((uint8_t)NUMBER_OF_EVENTS + MAX_SUBSCRIPTIONS));
+    memset((void *)subscriber_callbacks, 0, sizeof(subscriber_callbacks));
+    memset((void *)subscriber_next, 0, sizeof(subscriber_next));
 
     return (LCM_SUCCESS);
 }
@@ -162,13 +159,13 @@ lcm_status_t notify_subscribers(volatile const event_struct_t *event)
     if (event != NULL)
     {
         index = (uint8_t)event->event;
-        while ((index != 0U) && (index < ((uint8_t)NUMBER_OF_EVENTS + MAX_SUBSCRIPTIONS)))
+        while ((index != 0U) && (index < SUBSCRIBER_TABLE_SIZE))
         {
-            if (subscribers[index].callback != NULL)
+            if (subscriber_callbacks[index] != NULL)
             {
-                subscribers[index].callback(event->event, (const event_data_t *)&event->data);
+                subscriber_callbacks[index](event->event, (const event_data_t *)&event->data);
             }
-            index = subscribers[index].next;
+            index = subscriber_next[index];
         }
     }
     else
@@ -217,31 +214,29 @@ lcm_status_t subscribe_event(event_type_t event,
     // Check if the event is valid and the callback is not NULL
     if ((event < NUMBER_OF_EVENTS) && (callback != NULL) && (event != EVENT_NULL))
     {
-        if (subscribers[event].callback == NULL)
+        if (subscriber_callbacks[event] == NULL)
         {
             // Slot is empty, populate it
-            subscribers[event].event = event;
-            subscribers[event].callback = callback;
-            subscribers[event].next = 0U;
+            subscriber_callbacks[event] = callback;
+            subscriber_next[event] = 0U;
         }
         else
         {
             // Find the next available subscriber index
-            if (next_subscriber_index < ((uint8_t)NUMBER_OF_EVENTS + MAX_SUBSCRIPTIONS))
+            if (next_subscriber_index < SUBSCRIBER_TABLE_SIZE)
             {
                 uint8_t current_index = (uint8_t)event;
-                while (subscribers[current_index].next != 0U)
+                while (subscriber_next[current_index] != 0U)
                 {
-                    current_index = subscribers[current_index].next;
+                    current_index = subscriber_next[current_index];
                 }
 
                 // Populate the new subscriber slot
-                subscribers[next_subscriber_index].event = event;
-                subscribers[next_subscriber_index].callback = callback;
-                subscribers[next_subscriber_index].next = 0U;
+                subscriber_callbacks[next_subscriber_index] = callback;
+                subscriber_next[next_subscriber_index] = 0U;
 
                 // Link the last subscriber to the new one
-                subscribers[current_index].next = next_subscriber_index;
+                subscriber_next[current_index] = next_subscriber_index;
 
                 // Increment the next available subscriber index
                 next_subscriber_index++;

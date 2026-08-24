@@ -105,6 +105,38 @@
       "timeout_ms": 600
     },
 
+    // ─── Phase 3b: App sets status brightness to exactly 0% ────────────────
+    // Investigates a field report of status LEDs staying dimly lit at 0%.
+    // Proves two things together: a refresh actually happens (assert_any,
+    // no "where" - matches any status_led event of any color) AND every LED
+    // it produced was genuinely all-black (assert_no r_or_g_or_b_gt: 0).
+    // status_leds_hw_update() scales every channel by brightness_scale before
+    // sending, so (color * 0) >> 8 is exactly 0 with no rounding-up case -
+    // if this passes, ALCM's brightness pipeline is provably not the cause
+    // of a nonzero floor at 0%.
+
+    {
+      "phase": "App sets status brightness to zero",
+      "type": "inject",
+      "name": "refloat reports 0% status brightness (headlight unchanged)",
+      "lcm_status_brightness_pct": 0
+    },
+    {
+      "type": "run_for",
+      "name": "Status bar reaches true zero brightness",
+      "duration_ms": 600,
+      "checks": [
+        {
+          "name": "Status LEDs refreshed",
+          "assert_any": { "event": "status_led" }
+        },
+        {
+          "name": "Every LED fully off (no nonzero channel)",
+          "assert_no": { "event": "status_led", "where": { "r_or_g_or_b_gt": 0 } }
+        }
+      ]
+    },
+
     // ─── Phase 4: External LEDs disabled (refloat installed, LCM off) ──────
     // refloat still replies, but with just the 2-byte header (no brightness
     // bytes) — process_comm_custom_app_data() sees a too-short packet and
