@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -24,6 +24,7 @@
 #include <assert.h>
 
 #include "mock_event_queue.h"
+#include "command_processor.h"
 
 lcm_status_t event_queue_push(event_type_t event, const event_data_t* data)
 {
@@ -129,5 +130,15 @@ int validate_board_mode_event_data(const uintmax_t data, const uintmax_t check_d
 
     assert_int_equal(received_data->board_mode.mode, expected_state->mode);
     assert_int_equal(received_data->board_mode.submode, expected_state->submode);
+    return 1;
+}
+
+int validate_context_event_data(const uintmax_t data, const uintmax_t check_data)
+{
+    const event_data_t *received_data = (const event_data_t *)(uintptr_t)data;
+    const command_processor_context_t *expected_context =
+        (const command_processor_context_t *)(uintptr_t)check_data;
+
+    assert_int_equal(received_data->context, *expected_context);
     return 1;
 }

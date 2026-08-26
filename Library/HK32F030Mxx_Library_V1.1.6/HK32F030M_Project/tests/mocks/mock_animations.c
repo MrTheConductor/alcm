@@ -23,18 +23,17 @@
 #include "mock_animations.h"
 
 uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
-    color_mode_t color_mode, float movement_speed, float sigma, float hue_min,
-    float hue_max, float color_speed,
+    color_mode_t color_mode, uint32_t movement_speed, fixed16_t hue_min,
+    fixed16_t hue_max, uint32_t color_speed,
     scan_start_t scan_start,
     scan_end_t scan_end,
-    float init_mu,
+    fixed16_t init_mu,
     const status_leds_color_t *rgb)
 {
     check_expected(buffer);
     check_expected(direction);
     check_expected(color_mode);
     check_expected(movement_speed);
-    check_expected(sigma);
     check_expected(hue_min);
     check_expected(hue_max);
     check_expected(color_speed);
@@ -48,9 +47,9 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
 
 uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
                           brightness_mode_t brightness_mode, fill_mode_t fill_mode,
-                          uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
-                          float color_speed, float brightness_min, float brightness_max,
-                          float brightness_speed, uint16_t brightness_sequence,
+                          uint8_t first_led, uint8_t last_led, fixed16_t hue_min, fixed16_t hue_max,
+                          uint32_t color_speed, fixed16_t brightness_min, fixed16_t brightness_max,
+                          uint32_t brightness_speed, uint16_t brightness_sequence,
                           const status_leds_color_t *rgb) {
     check_expected(buffer);
     check_expected(color_mode);
@@ -102,7 +101,7 @@ void stop_animation(void) {
     function_called();
 }
 
-void hsl_to_rgb(float h, float s, float l, status_leds_color_t *color) {
+void hsl_to_rgb(fixed16_t h, uint8_t s, uint8_t l, status_leds_color_t *color) {
     check_expected(h);
     check_expected(s);
     check_expected(l);

@@ -32,22 +32,22 @@ ring_buffer_t *vesc_serial_get_rx_buffer(void) {
     return (ring_buffer_t *)mock();
 }
 
-float vesc_serial_get_duty_cycle(void) {
-    return (float)mock();
+int16_t vesc_serial_get_duty_cycle(void) {
+    return (int16_t)mock();
 }
 
 int32_t vesc_serial_get_rpm(void) {
     return (int32_t)mock();
 }
 
-float vesc_serial_get_battery_level(void) {
-    return (float)mock();
+int16_t vesc_serial_get_battery_level(void) {
+    return (int16_t)mock();
 }
 
 uint8_t vesc_serial_get_fault(void) {
     return (uint8_t)mock();
 }
 
-float32_t vesc_serial_get_imu_roll(void) {
-    return (float32_t)mock();
+int32_t vesc_serial_get_imu_roll(void) {
+    return (int32_t)mock();
 }

@@ -29,9 +29,9 @@
 typedef struct
 {
     uint32_t magic;                        // Magic number to identify valid settings.
-    float32_t headlight_brightness;        // Brightness level for the headlights
-    float32_t status_brightness;           // Brightness level for the status LEDs.
-    float32_t personal_color;              // Personal color.
+    uint8_t headlight_brightness;          // Brightness level for the headlights (0-255 = 0.0-1.0)
+    uint8_t status_brightness;             // Brightness level for the status LEDs (0-255 = 0.0-1.0)
+    uint16_t personal_color;               // Personal color, degrees [0, 360).
     bool_t enable_beep;                    // Flag to enable or disable beep sound.
     bool_t enable_status_leds;             // Flag to enable or disable status LEDs.
     bool_t enable_headlights;              // Flag to enable or disable headlights.

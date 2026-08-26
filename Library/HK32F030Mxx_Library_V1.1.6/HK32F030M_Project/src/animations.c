@@ -17,7 +17,6 @@
  * with ALCM. If not, see <https://www.gnu.org/licenses/>.
  */
 #include <stddef.h>
-#include <math.h>
 
 #include "animations.h"
 #include "status_leds.h"
@@ -47,7 +46,7 @@ typedef struct
 typedef struct
 {
     brightness_mode_t mode;  /*< Animation brightness mode*/
-    float static_value;      /*< Static brightness value */
+    uint8_t static_value;    /*< Static brightness value, 0-255 = 0.0-1.0 */
     function_generator_t fg; /*< Function generator for b */
 } brightness_animation_t;
 
@@ -56,14 +55,13 @@ typedef struct
  *
  * The scan animation moves a gaussian distribution across the LED strip.
  * It looks similar to a laser scan, or "knight rider" if the color is
- * red.
+ * red. Always uses SIGMA_DEFAULT - see calculate_brightness().
  */
 typedef struct
 {
     status_leds_color_t *buffer; /*< LED buffer */
     color_animation_t color;     /*< Color animation */
     scan_direction_t direction;  /*< Scan direction */
-    float sigma;                 /*< Standard deviation */
     function_generator_t fg;     /*< Function generator for mu */
 } scan_animation_t;
 
@@ -132,24 +130,40 @@ static uint16_t animation_id = 0U; // Current animation ID
 TIMER_CALLBACK(animation, tick);
 
 /**
+ * @brief Gaussian brightness falloff, indexed by |i - mu| in 1/16-LED steps
+ * (16 steps/LED keeps scan motion visually smooth). Computed offline for
+ * SIGMA_DEFAULT (0.7) - the only sigma value scan_animation_setup() is ever
+ * called with (previously a sigma parameter threaded this value through at
+ * runtime; since it never varied, this LUT replaces the runtime
+ * exp()/tiny_expf() call entirely). Distances beyond the table (>= 2.5 LEDs)
+ * are ~0 and not stored.
+ */
+static const uint8_t brightness_falloff_lut[40] = {
+    255, 254, 251, 246, 239, 231, 221, 210,
+    198, 185, 171, 157, 144, 130, 117, 104,
+    92,  81,  70,  60,  52,  44,  37,  31,
+    26,  21,  17,  14,  11,  9,   7,   6,
+    4,   3,   3,   2,   1,   1,   1,   1,
+};
+
+/**
  * @brief Calculate the brightness of a status LED.
  *
- * This function calculates the brightness of a status LED based on a Gaussian
- * distribution centered at `mu` with a standard deviation of `sigma`. The
- * brightness is determined by the distance of the LED index `i` from the
- * center `mu`, and it is clamped between 0.0 and 1.0.
- *
- * @param mu The mean value or center of the distribution.
- * @param sigma The standard deviation, controlling the spread of the
- * distribution.
+ * @param mu The mean value or center of the distribution (Q16.16 LED index).
  * @param i The index of the LED for which brightness is being calculated.
- * @return The calculated brightness value, clamped between 0.0 and 1.0.
+ * @return The calculated brightness, 0-255 = 0.0-1.0.
  */
-float calculate_brightness(float mu, float sigma, uint8_t i)
+static uint8_t calculate_brightness(fixed16_t mu, uint8_t i)
 {
-    float distance = (i - mu);
-    float value = tiny_expf(-0.5f * (distance * distance) / (sigma * sigma));
-    return (CLAMP(value, 0.0f, 1.0f));
+    fixed16_t distance = ((fixed16_t)i << 16) - mu;
+    uint32_t abs_distance = (uint32_t)((distance < 0) ? -distance : distance);
+    uint32_t idx = abs_distance >> 12; // 1/16-LED steps (65536 / 16 = 4096)
+
+    if (idx >= 40U)
+    {
+        return 0U;
+    }
+    return brightness_falloff_lut[idx];
 }
 
 /**
@@ -169,16 +183,15 @@ void animation_start(animation_tick_t callback)
 }
 
 /**
- * @brief Calculate the mu value for a given sigma and threshold.
+ * @brief mu falloff distance: sigma * sqrt(-2*sigma^2*ln(threshold)).
+ *
+ * Was a runtime sqrt()/log() call; scan_animation_setup() only ever calls it
+ * with SIGMA_DEFAULT (0.7) and a threshold of 0.01, so this is the
+ * precomputed constant for that one case instead (folded at compile time,
+ * verified against the original formula: sigma=0.7, threshold=0.01 ->
+ * 1.4870785867974432).
  */
-float calculate_mu_falloff(float sigma, float threshold)
-{
-    if (threshold <= 0 || threshold >= 1)
-    {
-        return -1.0f; // Invalid threshold
-    }
-    return sigma * tiny_sqrtf(-2.0f * sigma * sigma * tiny_logf(threshold));
-}
+#define MU_FALLOFF FIXED16(1.4870785867974432)
 
 /**
  * @brief Converts HSL color values to RGB color values.
@@ -196,46 +209,75 @@ float calculate_mu_falloff(float sigma, float threshold)
  * @param color Pointer to a status_leds_color_t struct to store the resulting
  * RGB values.
  */
-void hsl_to_rgb(float h, float s, float l, status_leds_color_t *color)
+/**
+ * @brief Absolute value of a Q16.16 fixed-point value.
+ */
+static fixed16_t fixed_abs16(fixed16_t x)
+{
+    return (x < 0) ? -x : x;
+}
+
+void hsl_to_rgb(fixed16_t h, uint8_t s, uint8_t l, status_leds_color_t *color)
 {
     if (color != NULL)
     {
-        h = tiny_fmodf(h, 360.0f);
-        float c = (1.0f - tiny_fabsf(2.0f * l - 1.0f)) * s; // Chroma
-        float x =
-            c * (1.0f - tiny_fabsf(tiny_fmodf(h / 60.0f, 2.0f) - 1.0f)); // Second largest component
-        float m = l - c / 2.0f;
+        fixed16_t s16 = frac8_to_fixed16(s);
+        fixed16_t l16 = frac8_to_fixed16(l);
+        fixed16_t c, x, m, h_prime;
+        fixed16_t r = 0, g = 0, b = 0;
+        int32_t sector;
 
-        float r = 0, g = 0, b = 0;
-        if (h >= 0 && h < 60)
+        while (h >= FIXED16(360.0))
         {
+            h -= FIXED16(360.0);
+        }
+        while (h < 0)
+        {
+            h += FIXED16(360.0);
+        }
+
+        // Chroma = (1 - |2l - 1|) * s
+        c = fixed_mul16(FIXED16(1.0) - fixed_abs16((l16 << 1) - FIXED16(1.0)), s16);
+
+        // h/60 ("hours") mod 2, then second largest component = c * (1 - |h_prime - 1|).
+        // Division by 60 is a compile-time constant - folds to a multiply, no idiv call.
+        h_prime = h / 60;
+        while (h_prime >= FIXED16(2.0))
+        {
+            h_prime -= FIXED16(2.0);
+        }
+        x = fixed_mul16(c, FIXED16(1.0) - fixed_abs16(h_prime - FIXED16(1.0)));
+        m = l16 - (c >> 1);
+
+        sector = (h >> 16) / 60; // 0-5, division by a constant is free
+        switch (sector)
+        {
+        case 0:
             r = c, g = x, b = 0;
-        }
-        else if (h >= 60 && h < 120)
-        {
+            break;
+        case 1:
             r = x, g = c, b = 0;
-        }
-        else if (h >= 120 && h < 180)
-        {
+            break;
+        case 2:
             r = 0, g = c, b = x;
-        }
-        else if (h >= 180 && h < 240)
-        {
+            break;
+        case 3:
             r = 0, g = x, b = c;
-        }
-        else if (h >= 240 && h < 300)
-        {
+            break;
+        case 4:
             r = x, g = 0, b = c;
-        }
-        else if (h >= 300 && h < 360)
-        {
+            break;
+        default: // sector 5
             r = c, g = 0, b = x;
+            break;
         }
 
-        // Scale to [0, 255] and add the offset m
-        color->r = (uint8_t)((r + m) * 255);
-        color->g = (uint8_t)((g + m) * 255);
-        color->b = (uint8_t)((b + m) * 255);
+        // fixed16_to_frac8() clamps, which also makes this safe for a
+        // negative r/g/b+m (which the original float version's unclamped
+        // (uint8_t) cast did not handle).
+        color->r = fixed16_to_frac8(r + m);
+        color->g = fixed16_to_frac8(g + m);
+        color->b = fixed16_to_frac8(b + m);
     }
 }
 
@@ -256,7 +298,7 @@ void hsl_to_rgb(float h, float s, float l, status_leds_color_t *color)
  */
 void next_color(status_leds_color_t *color, color_animation_t *color_animation)
 {
-    float h = 0.0f;
+    fixed16_t h = 0;
 
     if (color != NULL && color_animation != NULL)
     {
@@ -304,8 +346,9 @@ void next_color(status_leds_color_t *color, color_animation_t *color_animation)
  * @brief Initializes the brightness animation with the specified parameters.
  */
 void brightness_init(brightness_animation_t *brightness_animation,
-                     brightness_mode_t brightness_mode, float brightness_min, float brightness_max,
-                     float brightness_speed, uint16_t brightness_sequence)
+                     brightness_mode_t brightness_mode, fixed16_t brightness_min,
+                     fixed16_t brightness_max, uint32_t brightness_speed,
+                     uint16_t brightness_sequence)
 {
     if (brightness_animation != NULL)
     {
@@ -323,7 +366,7 @@ void brightness_init(brightness_animation_t *brightness_animation,
                                     brightness_max, FG_FLAG_REPEAT, 0);
             break;
         case BRIGHTNESS_MODE_STATIC:
-            brightness_animation->static_value = brightness_max;
+            brightness_animation->static_value = fixed16_to_frac8(brightness_max);
             break;
         case BRIGHTNESS_MODE_FADE:
             function_generator_init(&(brightness_animation->fg), FUNCTION_GENERATOR_SAWTOOTH,
@@ -349,9 +392,9 @@ void brightness_init(brightness_animation_t *brightness_animation,
 /**
  * @brief Calculates the next brightness value for the animation.
  */
-float next_brightness(brightness_animation_t *brightness_animation)
+uint8_t next_brightness(brightness_animation_t *brightness_animation)
 {
-    float b = 0.0f;
+    uint8_t b = 0U;
 
     if (brightness_animation != NULL)
     {
@@ -361,10 +404,12 @@ float next_brightness(brightness_animation_t *brightness_animation)
         }
         else
         {
-            if (LCM_SUCCESS != function_generator_next_sample(&(brightness_animation->fg), &b))
+            fixed16_t sample = 0;
+            if (LCM_SUCCESS != function_generator_next_sample(&(brightness_animation->fg), &sample))
             {
                 fault(EMERGENCY_FAULT_INVALID_ARGUMENT);
             }
+            b = fixed16_to_frac8(sample);
         }
     }
     else
@@ -392,8 +437,8 @@ float next_brightness(brightness_animation_t *brightness_animation)
  * @param rgb Pointer to a status_leds_color_t struct containing the RGB values
  * for the color animation (used for RGB mode only).
  */
-void color_init(color_animation_t *color_animation, color_mode_t color_mode, float hue_min,
-                float hue_max, float color_speed, const status_leds_color_t *rgb)
+void color_init(color_animation_t *color_animation, color_mode_t color_mode, fixed16_t hue_min,
+                fixed16_t hue_max, uint32_t color_speed, const status_leds_color_t *rgb)
 {
     if (color_animation != NULL)
     {
@@ -449,15 +494,15 @@ void color_init(color_animation_t *color_animation, color_mode_t color_mode, flo
  *
  * @param color Pointer to a status_leds_color_t struct to scale the brightness
  * of.
- * @param brightness The brightness to scale the color to.
+ * @param brightness The brightness to scale the color to, 0-255 = 0.0-1.0.
  */
-void scale_brightness(status_leds_color_t *color, float brightness)
+void scale_brightness(status_leds_color_t *color, uint8_t brightness)
 {
     if (color != NULL)
     {
-        color->r = (uint8_t)(color->r * brightness);
-        color->g = (uint8_t)(color->g * brightness);
-        color->b = (uint8_t)(color->b * brightness);
+        color->r = scale8(color->r, brightness);
+        color->g = scale8(color->g, brightness);
+        color->b = scale8(color->b, brightness);
     }
 }
 
@@ -465,7 +510,7 @@ void scale_brightness(status_leds_color_t *color, float brightness)
  * @brief Fills the specified range of LEDs with a gradient color.
  */
 void gradient_fill(status_leds_color_t *buffer, color_animation_t *color_animation,
-                   uint8_t first_led, uint8_t last_led, float brightness)
+                   uint8_t first_led, uint8_t last_led, uint8_t brightness)
 {
     if (color_animation == NULL || color_animation->mode == COLOR_MODE_RGB)
     {
@@ -474,7 +519,7 @@ void gradient_fill(status_leds_color_t *buffer, color_animation_t *color_animati
     }
 
     status_leds_color_t color = {0};
-    float h = 0.0f;
+    fixed16_t h = 0;
 
     int8_t step = (first_led <= last_led) ? 1 : -1;
     uint8_t count = (first_led <= last_led) ? (last_led - first_led + 1) : (first_led - last_led + 1);
@@ -505,7 +550,7 @@ void fill_animation_tick(uint32_t tick)
 {
     status_leds_color_t color = {0};
     uint8_t midpoint = 0;
-    float b = 0.0f;
+    uint8_t b = 0U;
 
     // Clear the LEDs
     status_leds_set_color(&color, 0, STATUS_LEDS_COUNT - 1);
@@ -588,11 +633,7 @@ void fill_animation_tick(uint32_t tick)
 void scan_animation_tick(uint32_t tick)
 {
     status_leds_color_t color = {0};
-    float range = 0.0f;
-    float increment = 0.0f;
-    float global_brightness = 0.0f;
-    float mu = 0.0f;
-    float sigma = 0.0f;
+    fixed16_t mu = 0;
     bool mirror = (animation_config.scan.direction == SCAN_DIRECTION_LEFT_TO_RIGHT_MIRROR) ||
                   (animation_config.scan.direction == SCAN_DIRECTION_RIGHT_TO_LEFT_MIRROR);
 
@@ -607,27 +648,29 @@ void scan_animation_tick(uint32_t tick)
     // Step 3: Update the LEDs
     for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
     {
-        float brightness = 0.0f;
+        uint8_t brightness = 0U;
+        fixed16_t i_fixed = (fixed16_t)i << 16;
 
         // Calculate the brightness based on the distance from the center
-        if (animation_config.scan.direction == SCAN_DIRECTION_LEFT_TO_RIGHT_FILL && i < mu)
+        if (animation_config.scan.direction == SCAN_DIRECTION_LEFT_TO_RIGHT_FILL && i_fixed < mu)
         {
-            brightness = 1.0f;
+            brightness = 255U;
         }
-        else if (animation_config.scan.direction == SCAN_DIRECTION_RIGHT_TO_LEFT_FILL && i > mu)
+        else if (animation_config.scan.direction == SCAN_DIRECTION_RIGHT_TO_LEFT_FILL &&
+                 i_fixed > mu)
         {
-            brightness = 1.0f;
+            brightness = 255U;
         }
         else
         {
-            brightness = calculate_brightness(mu, animation_config.scan.sigma, i);
+            brightness = calculate_brightness(mu, i);
         }
 
         if (animation_config.scan.buffer != NULL)
         {
-            animation_config.scan.buffer[i].r = (uint8_t)(color.r * brightness);
-            animation_config.scan.buffer[i].g = (uint8_t)(color.g * brightness);
-            animation_config.scan.buffer[i].b = (uint8_t)(color.b * brightness);
+            animation_config.scan.buffer[i].r = scale8(color.r, brightness);
+            animation_config.scan.buffer[i].g = scale8(color.g, brightness);
+            animation_config.scan.buffer[i].b = scale8(color.b, brightness);
         }
         else
         {
@@ -681,18 +724,17 @@ void fade_animation_tick(uint32_t tick)
     }
     else
     {
-        // Update the LEDs
-        float fade_factor = 1.0f - ((float)animation_config.fade.elapsed_ms /
-                                    (float)animation_config.fade.period_ms);
+        // Update the LEDs. period_ms is a runtime (not compile-time
+        // constant) divisor, so this is a real unsigned divide - already
+        // linked in elsewhere in the firmware, so free.
+        uint8_t fade_factor = (uint8_t)(255U - (((uint32_t)animation_config.fade.elapsed_ms * 255U) /
+                                                animation_config.fade.period_ms));
 
         for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
         {
-            animation_config.fade.buffer[i].r =
-                (uint8_t)(animation_config.fade.buffer[i].r * fade_factor);
-            animation_config.fade.buffer[i].g =
-                (uint8_t)(animation_config.fade.buffer[i].g * fade_factor);
-            animation_config.fade.buffer[i].b =
-                (uint8_t)(animation_config.fade.buffer[i].b * fade_factor);
+            animation_config.fade.buffer[i].r = scale8(animation_config.fade.buffer[i].r, fade_factor);
+            animation_config.fade.buffer[i].g = scale8(animation_config.fade.buffer[i].g, fade_factor);
+            animation_config.fade.buffer[i].b = scale8(animation_config.fade.buffer[i].b, fade_factor);
         }
 
         status_leds_refresh();
@@ -769,18 +811,17 @@ void fire_animation_tick(uint32_t tick)
  * @brief Initializes the scan animation with the specified parameters.
  */
 uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
-                              color_mode_t color_mode, float movement_speed, float sigma,
-                              float hue_min, float hue_max, float color_speed,
-                              scan_start_t scan_start, scan_end_t scan_end, float init_mu,
+                              color_mode_t color_mode, uint32_t movement_speed,
+                              fixed16_t hue_min, fixed16_t hue_max, uint32_t color_speed,
+                              scan_start_t scan_start, scan_end_t scan_end, fixed16_t init_mu,
                               const status_leds_color_t *rgb)
 {
-    float mu_falloff = calculate_mu_falloff(sigma, 0.01f);
-    float mu_start = 0.0f;
-    float mu_end = STATUS_LEDS_COUNT - 1 + mu_falloff;
+    fixed16_t mu_start = 0;
+    fixed16_t mu_end = FIXED16(STATUS_LEDS_COUNT - 1) + MU_FALLOFF;
 
     if (scan_start == SCAN_START_DEFAULT)
     {
-        mu_start = -mu_falloff;
+        mu_start = -MU_FALLOFF;
     }
     else
     {
@@ -789,13 +830,12 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
 
     // Copy the animation configuration
     animation_config.scan.buffer = buffer;
-    animation_config.scan.sigma = sigma;
     animation_config.scan.direction = direction;
 
     switch (direction)
     {
     case SCAN_DIRECTION_LEFT_TO_RIGHT_MIRROR:
-        mu_end = (STATUS_LEDS_COUNT / 2) - 1 + mu_falloff;
+        mu_end = FIXED16((STATUS_LEDS_COUNT / 2) - 1) + MU_FALLOFF;
         // fallthrough intentional
     case SCAN_DIRECTION_LEFT_TO_RIGHT_FILL:
         // fallthrough intentional
@@ -805,7 +845,7 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
                                 scan_end == SCAN_END_NEVER ? FG_FLAG_REPEAT : FG_FLAG_NONE, 0);
         break;
     case SCAN_DIRECTION_RIGHT_TO_LEFT_MIRROR:
-        mu_end = (STATUS_LEDS_COUNT / 2) - 1 + mu_falloff;
+        mu_end = FIXED16((STATUS_LEDS_COUNT / 2) - 1) + MU_FALLOFF;
         // fallthrough intentional
     case SCAN_DIRECTION_RIGHT_TO_LEFT_FILL:
         // fallthrough intentional
@@ -817,7 +857,8 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
         break;
     case SCAN_DIRECTION_SINE:
         function_generator_init(&(animation_config.scan.fg), FUNCTION_GENERATOR_SINE,
-                                movement_speed, ANIMATION_DELAY, 0, STATUS_LEDS_COUNT - 1,
+                                movement_speed, ANIMATION_DELAY, FIXED16(0.0),
+                                FIXED16(STATUS_LEDS_COUNT - 1),
                                 scan_end == SCAN_END_NEVER ? FG_FLAG_REPEAT : FG_FLAG_NONE, 0);
         break;
     default:
@@ -848,10 +889,10 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
  */
 uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
                               brightness_mode_t brightness_mode, fill_mode_t fill_mode,
-                              uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
-                              float color_speed, float brightness_min, float brightness_max,
-                              float brightness_speed, uint16_t brightness_sequence,
-                              const status_leds_color_t *rgb)
+                              uint8_t first_led, uint8_t last_led, fixed16_t hue_min,
+                              fixed16_t hue_max, uint32_t color_speed, fixed16_t brightness_min,
+                              fixed16_t brightness_max, uint32_t brightness_speed,
+                              uint16_t brightness_sequence, const status_leds_color_t *rgb)
 {
     // Copy the animation configuration
     animation_config.fill.buffer = buffer;

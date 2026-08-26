@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -26,6 +26,11 @@
 #include "lcm_types.h"
 #include "interrupts.h"
 #include "tiny_math.h"
+#include "function_generator.h"
+#ifdef ENABLE_APP_INTEGRATION
+#include "settings.h"
+#include "command_processor.h"
+#endif
 
 // Values from VESC datatypes.h
 #define COMM_GET_VALUES_SETUP_SELECTIVE 51
@@ -34,8 +39,30 @@
 
 #ifdef ENABLE_IMU_EVENTS
 #define COMM_GET_IMU_DATA 65
-#define COMM_GET_IMU_DATA_RESPONSE_LENGTH 12 
-#define COMM_GET_IMU_DATA_MASK 0x03 
+#define COMM_GET_IMU_DATA_RESPONSE_LENGTH 12
+#define COMM_GET_IMU_DATA_MASK 0x03
+#endif
+
+#ifdef ENABLE_APP_INTEGRATION
+/* refloat's custom app data protocol (COMM_CUSTOM_APP_DATA), used to relay
+ * phone-app-controlled headlight/status bar brightness. See
+ * refloat/src/lcm.h (LcmCommands) and refloat/src/lcm.c
+ * (lcm_poll_response()) for the authoritative definition. */
+#define COMM_CUSTOM_APP_DATA 36
+#define LCM_PACKAGE_ID 101
+#define LCM_COMMAND_POLL 24
+#define LCM_POLL_RESPONSE_MIN_LENGTH 15
+#define LCM_POLL_STATE_OFFSET 3
+#define LCM_POLL_HEADLIGHT_BRIGHTNESS_OFFSET 12
+#define LCM_POLL_STATUS_BRIGHTNESS_OFFSET 14
+/* Sentinel baseline value (out of the valid 0-100 range) meaning "no poll
+ * reply has been seen yet for this channel". */
+#define LCM_BASELINE_UNSET 0xFFU
+/* Low nibble of the state byte at LCM_POLL_STATE_OFFSET: refloat's
+ * state_compat() (refloat/src/state.c) maps STATE_DISABLED to 0xF - this is
+ * how the phone app's "Lock" feature is signalled over the wire. */
+#define LCM_STATE_MASK 0x0FU
+#define LCM_STATE_DISABLED 0x0FU
 #endif
 
 #define SERIAL_BAUDRATE 115200U
@@ -49,25 +76,25 @@
 #define END_BYTE 0x03
 #define MAX_PACKET_LENGTH 32
 #define MAX_OUTSTANDING_PACKETS 5
-#define SIGNIFICANT_CHANGE(x, y) (fabsf((x) - (y)) > 0.02f)
-#define RADIANS_TO_DEGREES(radians) ((radians) * (180.0f / M_PI))
+// Millidegrees - 0.02 degrees was the original float threshold.
+#define SIGNIFICANT_CHANGE(x, y) ((((x) > (y)) ? ((x) - (y)) : ((y) - (x))) > 20)
 
 typedef struct
 {
-    float32_t duty_cycle;
+    int16_t duty_cycle;  // Tenths of a percent
     int32_t rpm;
 #if defined(ENABLE_VOLTAGE_MONITORING)
-    float32_t input_voltage;
+    int16_t input_voltage; // Tenths of a volt
 #endif
-    float32_t battery_level;
+    int16_t battery_level; // Tenths of a percent
     uint8_t fault;
 } comm_get_values_setup_selective_t;
 
 #ifdef ENABLE_IMU_EVENTS
 typedef struct
 {
-    float32_t pitch;
-    float32_t roll;
+    int32_t pitch; // Millidegrees
+    int32_t roll;  // Millidegrees
 } comm_get_imu_data_t;
 #endif
 
@@ -80,6 +107,11 @@ static uint8_t vesc_serial_outstaning_packet_count = 0;
 static vesc_serial_callback_t vesc_serial_callback = NULL;
 #ifdef ENABLE_IMU_EVENTS
 static comm_get_imu_data_t comm_get_imu_data = {0};
+#endif
+#ifdef ENABLE_APP_INTEGRATION
+static uint8_t headlight_remote_baseline = LCM_BASELINE_UNSET;
+static uint8_t status_remote_baseline = LCM_BASELINE_UNSET;
+static bool_t vesc_locked = false;
 #endif
 
 // Forward declarations
@@ -228,42 +260,60 @@ uint32_t buffer_get_uint32(const uint8_t *buffer)
     return (buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3];
 }
 
-/**
- * @brief Extracts a 16-bit float from a buffer
- *
- * Extracts a 16-bit signed integer from the buffer and scales it to a float32_t.
- *
- * @param buffer The buffer to read from
- * @param scale The scale of the float (i.e. 100.0 for a 1/100th scaling)
- * @return The scaled float
- */
-float16_t buffer_get_float16(const uint8_t *buffer, float32_t scale)
-{
-    return (float16_t)buffer_get_int16(buffer) / scale;
-}
-
-/**
- * @brief Extracts a 32-bit float from a buffer
- *
- * Extracts a 32-bit signed integer from the buffer and scales it to a float32_t.
- *
- * @param buffer The buffer to read from
- * @param scale The scale of the float (i.e. 100.0 for a 1/100th scaling)
- * @return The scaled float
- */
-float16_t buffer_get_float32(const uint8_t *buffer, float32_t scale)
-{
-    return (float32_t)buffer_get_int32(buffer) / scale;
-}
-
-float32_t buffer_get_float32_auto(const uint8_t *buffer)
-{
-    union { uint32_t i; float f; } u;
-    u.i = buffer_get_uint32(buffer);
-    return (float32_t)u.f;
-}
-
 #ifdef ENABLE_IMU_EVENTS
+// 180000/pi, as Q16.16 - converts Q16.16 radians directly to millidegrees
+// via a single fixed_mul16().
+#define RADIANS_TO_MILLIDEGREES_SCALE FIXED16(180000.0 / 3.14159265358979323846)
+
+/**
+ * @brief Decodes a raw wire IEEE754 float (radians) directly into
+ * millidegrees, via manual bit unpacking - no soft-float ops.
+ *
+ * This is the one place VESC data arrives as a genuine IEEE754 bit pattern
+ * (everywhere else uses buffer_get_int16/32, which are already integers).
+ * Denormals/true-zero (raw exponent field 0) are treated as 0 - negligible
+ * for a physically meaningful pitch/roll reading. Values whose magnitude
+ * would overflow the Q16.16 intermediate are clamped rather than wrapped.
+ *
+ * @param bits Raw 32-bit wire value (big-endian decoded via buffer_get_uint32).
+ * @return The angle in millidegrees.
+ */
+static int32_t buffer_get_imu_millidegrees(const uint8_t *buffer)
+{
+    uint32_t bits = buffer_get_uint32(buffer);
+    bool_t negative = (bits & 0x80000000U) != 0U;
+    int32_t exponent = (int32_t)((bits >> 23) & 0xFFU);
+    uint32_t mantissa;
+    int32_t shift;
+    int64_t radians_fixed16;
+    int64_t result;
+
+    if (exponent == 0)
+    {
+        return 0;
+    }
+
+    mantissa = (bits & 0x007FFFFFU) | 0x00800000U; // restore implicit leading 1
+    shift = (exponent - 127) - 7; // scale 23-bit mantissa fraction to Q16.16
+
+    if (shift >= 0)
+    {
+        radians_fixed16 = (shift > 30) ? INT32_MAX : ((int64_t)mantissa << shift);
+    }
+    else
+    {
+        radians_fixed16 = (shift < -30) ? 0 : ((int64_t)mantissa >> (-shift));
+    }
+    if (radians_fixed16 > INT32_MAX)
+    {
+        radians_fixed16 = INT32_MAX;
+    }
+
+    result = ((int64_t)(int32_t)radians_fixed16 * RADIANS_TO_MILLIDEGREES_SCALE) >> 16;
+
+    return (int32_t)(negative ? -result : result);
+}
+
 /**
  * @brief Processes a COMM_GET_IMU_DATA packet
  *
@@ -297,27 +347,31 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
         return;
     }
 
-    // Copy the payload into the temporary comm_get_imu_data struct
-    imu_data.roll = buffer_get_float32_auto(&payload[3]);
-    imu_data.pitch = buffer_get_float32_auto(&payload[7]);
+    // Copy the payload into the temporary comm_get_imu_data struct - both
+    // already in millidegrees, so cache and fresh value are always
+    // comparable (the previous float version cached the fresh sample's
+    // degrees value but compared it against the next sample's radians
+    // value - a latent unit mismatch this rewrite avoids for free).
+    imu_data.roll = buffer_get_imu_millidegrees(&payload[3]);
+    imu_data.pitch = buffer_get_imu_millidegrees(&payload[7]);
 
     // For each field, check if the value has changed
     if (SIGNIFICANT_CHANGE(imu_data.pitch, comm_get_imu_data.pitch))
     {
         event_data_t data = {0};
-        data.imu_pitch = RADIANS_TO_DEGREES(imu_data.pitch);
+        data.imu_pitch = imu_data.pitch;
         event_queue_push(EVENT_IMU_PITCH_CHANGED, &data);
 
-        comm_get_imu_data.pitch = data.imu_pitch;
+        comm_get_imu_data.pitch = imu_data.pitch;
     }
 
     if (SIGNIFICANT_CHANGE(imu_data.roll, comm_get_imu_data.roll))
     {
         event_data_t data = {0};
-        data.imu_roll = RADIANS_TO_DEGREES(imu_data.roll);
+        data.imu_roll = imu_data.roll;
         event_queue_push(EVENT_IMU_ROLL_CHANGED, &data);
 
-        comm_get_imu_data.roll = data.imu_roll;
+        comm_get_imu_data.roll = imu_data.roll;
     }
 }
 #endif
@@ -356,25 +410,28 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     }
 
     // Copy the payload into the temporary comm_get_values_setup_selective
-    // struct
-    values.duty_cycle = buffer_get_float16(&payload[5], 10.0f);
+    // struct. The wire value is already tenths of a percent (an int16,
+    // previously divided by 10.0f into a float and multiplied back out
+    // downstream) - decode it directly.
+    values.duty_cycle = buffer_get_int16(&payload[5]);
 
-    // Coerce the duty cycle to a valid range
-    CLAMP(values.duty_cycle, -100.0f, 100.0f);
+    // Coerce the duty cycle to a valid range (previously a no-op bug: CLAMP
+    // used as a bare statement discarded its result instead of assigning it).
+    values.duty_cycle = CLAMP(values.duty_cycle, -1000, 1000);
 
-    // RPM is an integer quantity in the VESC protocol (scale 1.0), so the
-    // float returned by buffer_get_float32 is truncated to int32_t explicitly
-    // to avoid an implicit float->int conversion warning (C4244).
-    values.rpm = (int32_t)buffer_get_float32(&payload[7], 1.0f);
+    // RPM is a genuine integer quantity in the VESC protocol (scale 1.0) -
+    // decode it directly instead of round-tripping through
+    // buffer_get_float32(), which only ever divided by 1.0f.
+    values.rpm = buffer_get_int32(&payload[7]);
 
 #if defined(ENABLE_VOLTAGE_MONITORING)
-    values.input_voltage = buffer_get_float16(&payload[11], 10.0f);
+    values.input_voltage = buffer_get_int16(&payload[11]);
 #endif
-    values.battery_level = buffer_get_float16(&payload[13], 10.0f);
+    values.battery_level = buffer_get_int16(&payload[13]);
 
     // The VESC can return battery levels outside of the 0-100% range,
     // so we need to coerce it to a valid range.
-    CLAMP(values.battery_level, 0.0f, 100.0f);
+    values.battery_level = CLAMP(values.battery_level, 0, 1000);
 
     values.fault = payload[15];
 
@@ -429,6 +486,96 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     }
 }
 
+#ifdef ENABLE_APP_INTEGRATION
+/**
+ * @brief Applies a single refloat-reported brightness channel if it changed
+ *
+ * Shared by both the headlight and status bar channels of
+ * process_comm_custom_app_data(). A channel's baseline starts at
+ * LCM_BASELINE_UNSET (out of the valid 0-100 range); the first sample just
+ * records the baseline without touching the setting, so a poll reply that
+ * merely confirms refloat's already-applied value never re-fires an event.
+ * Only a genuine change from the last-seen remote value is applied, which is
+ * what lets local button/footpad adjustments stick between polls instead of
+ * being overwritten by refloat re-reporting the same value it always has.
+ *
+ * @param baseline Last remote value seen for this channel (persists across calls)
+ * @param new_pct New value from the wire, 0-100 (clamped defensively)
+ * @param setting Settings field to update (0-255 = 0.0-1.0 fraction)
+ * @param context Context to report on EVENT_COMMAND_SETTINGS_CHANGED
+ */
+static void apply_lcm_brightness(uint8_t *baseline, uint8_t new_pct, uint8_t *setting,
+                                  command_processor_context_t context)
+{
+    if (new_pct > 100U)
+    {
+        new_pct = 100U;
+    }
+
+    if (new_pct != *baseline)
+    {
+        bool_t first_sample = (*baseline > 100U);
+        *baseline = new_pct;
+
+        if (!first_sample)
+        {
+            event_data_t data = {0};
+
+            // Divisor is a compile-time constant (100), so this is a free
+            // multiply-by-reciprocal, not a runtime division call.
+            *setting = (uint8_t)(((uint16_t)new_pct * 255U) / 100U);
+            data.context = context;
+            event_queue_push(EVENT_COMMAND_SETTINGS_CHANGED, &data);
+        }
+    }
+}
+
+/**
+ * @brief Processes a COMM_CUSTOM_APP_DATA packet
+ *
+ * Looks for refloat's COMMAND_LCM_POLL response and relays any change in the
+ * reported headlight/status bar brightness into the local settings. A
+ * response shorter than expected, or one that doesn't match the expected
+ * package/command id, is a valid protocol state (e.g. refloat's external LED
+ * support is disabled) rather than an error, so it is silently ignored.
+ *
+ * @param payload The payload of the packet
+ * @param packet_length The length of the packet
+ */
+void process_comm_custom_app_data(const uint8_t *payload, uint8_t packet_length)
+{
+    settings_t *settings;
+
+    if (packet_length < LCM_POLL_RESPONSE_MIN_LENGTH || payload[1] != LCM_PACKAGE_ID ||
+        payload[2] != LCM_COMMAND_POLL)
+    {
+        return;
+    }
+
+    settings = settings_get();
+
+    {
+        bool_t new_locked = (payload[LCM_POLL_STATE_OFFSET] & LCM_STATE_MASK) == LCM_STATE_DISABLED;
+
+        if (new_locked != vesc_locked)
+        {
+            event_data_t lock_data = {0};
+
+            vesc_locked = new_locked;
+            lock_data.enable = new_locked;
+            event_queue_push(EVENT_VESC_LOCKED_CHANGED, &lock_data);
+        }
+    }
+
+    apply_lcm_brightness(&headlight_remote_baseline, payload[LCM_POLL_HEADLIGHT_BRIGHTNESS_OFFSET],
+                          &settings->headlight_brightness,
+                          COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS);
+    apply_lcm_brightness(&status_remote_baseline, payload[LCM_POLL_STATUS_BRIGHTNESS_OFFSET],
+                          &settings->status_brightness,
+                          COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS);
+}
+#endif
+
 /**
  * @brief Processes a VESC packet
  *
@@ -455,6 +602,11 @@ void process_packet(uint8_t *payload, uint8_t packet_length)
 #ifdef ENABLE_IMU_EVENTS
     case COMM_GET_IMU_DATA:
         process_comm_get_imu_data(payload, packet_length);
+        break;
+#endif
+#ifdef ENABLE_APP_INTEGRATION
+    case COMM_CUSTOM_APP_DATA:
+        process_comm_custom_app_data(payload, packet_length);
         break;
 #endif
     default:
@@ -555,6 +707,9 @@ EVENT_HANDLER(vesc_serial, board_mode_change)
     case BOARD_MODE_IDLE:
     case BOARD_MODE_RIDING:
     case BOARD_MODE_FAULT:
+    case BOARD_MODE_DISABLED:
+        // Polling must continue while disabled (locked) - it's the only way
+        // to ever learn the board has been unlocked again
         if (vesc_serial_tx_timerid == INVALID_TIMER_ID || !is_timer_active(vesc_serial_tx_timerid))
         {
             vesc_serial_tx_timerid =
@@ -585,10 +740,11 @@ EVENT_HANDLER(vesc_serial, board_mode_change)
 TIMER_CALLBACK(vesc_serial, tx)
 {
     /*
-     * This packet is used to poll the VESC for data.  Since it is
-     * called repeatedly and the data never changes, we can just
-     * hardcode the message to save time and reduce code complexity.
-     * 
+     * These packets are used to poll the VESC for data.  Since they are
+     * sent repeatedly and never change, we can just hardcode each segment
+     * to save time and reduce code complexity. The segments are
+     * concatenated into a single UART write, one per optional feature.
+     *
      * COMM_GET_VALUES_SETUP_SELECTIVE:
      * byte 0: start byte (0x02)
      * byte 1: packet length (0x05)
@@ -601,22 +757,44 @@ TIMER_CALLBACK(vesc_serial, tx)
      *   int 8: fault (1<<16)
      * bytes 7-8 precomputed crc-16-ccitt (0x41e6)
      * byte 9: end byte (0x03)
-     * 
-     * COMM_GET_IMU_DATA (optional): 
-     * byte 10: start byte (0x02)
-     * byte 11: packet length (0x03)
-     * byte 12: command (0x41)
-     * bytes 13-14: mask (0x0003) (u32)
+     *
+     * COMM_GET_IMU_DATA (optional):
+     * byte 0: start byte (0x02)
+     * byte 1: packet length (0x03)
+     * byte 2: command (0x41)
+     * bytes 3-4: mask (0x0003) (u32)
      *  float 32: roll (1<<0)
-     *  float 32: pitch (1<<1) 
-     * bytes 15-16 precomputed crc-16-ccitt (0x1afe)
-     * byte 17: end byte (0x03)
+     *  float 32: pitch (1<<1)
+     * bytes 5-6 precomputed crc-16-ccitt (0x1afe)
+     * byte 7: end byte (0x03)
+     *
+     * COMM_CUSTOM_APP_DATA / COMMAND_LCM_POLL (optional):
+     * byte 0: start byte (0x02)
+     * byte 1: packet length (0x03)
+     * byte 2: command (0x24 = COMM_CUSTOM_APP_DATA, 36)
+     * byte 3: refloat package id (0x65 = 101)
+     * byte 4: refloat command id (0x18 = COMMAND_LCM_POLL, 24)
+     * bytes 5-6 precomputed crc-16-ccitt (0x3de0)
+     * byte 7: end byte (0x03)
      */
-#ifdef ENABLE_IMU_EVENTS
+#if defined(ENABLE_IMU_EVENTS) && defined(ENABLE_APP_INTEGRATION)
+#define BYTE_LENGTH 26U
+    uint8_t buffer[BYTE_LENGTH] = {
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
+        0x02, 0x03, 0x41, 0x00, 0x03, 0x1a, 0xfe, 0x03,
+        0x02, 0x03, 0x24, 0x65, 0x18, 0x3d, 0xe0, 0x03
+    };
+#elif defined(ENABLE_IMU_EVENTS)
 #define BYTE_LENGTH 18U
     uint8_t buffer[BYTE_LENGTH] = {
         0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
         0x02, 0x03, 0x41, 0x00, 0x03, 0x1a, 0xfe, 0x03
+    };
+#elif defined(ENABLE_APP_INTEGRATION)
+#define BYTE_LENGTH 18U
+    uint8_t buffer[BYTE_LENGTH] = {
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
+        0x02, 0x03, 0x24, 0x65, 0x18, 0x3d, 0xe0, 0x03
     };
 #else
 #define BYTE_LENGTH 10U
@@ -649,7 +827,7 @@ TIMER_CALLBACK(vesc_serial, tx)
  *
  * @return The current duty cycle of the VESC
  */
-float32_t vesc_serial_get_duty_cycle(void)
+int16_t vesc_serial_get_duty_cycle(void)
 {
     return comm_get_values_setup_selective.duty_cycle;
 }
@@ -670,7 +848,7 @@ int32_t vesc_serial_get_rpm(void)
  *
  * @return The current input voltage of the VESC
  */
-float32_t vesc_serial_get_input_voltage(void)
+int16_t vesc_serial_get_input_voltage(void)
 {
     return comm_get_values_setup_selective.input_voltage;
 }
@@ -681,7 +859,7 @@ float32_t vesc_serial_get_input_voltage(void)
  *
  * @return The current battery level of the VESC
  */
-float32_t vesc_serial_get_battery_level(void)
+int16_t vesc_serial_get_battery_level(void)
 {
     return comm_get_values_setup_selective.battery_level;
 }
@@ -702,7 +880,7 @@ uint8_t vesc_serial_get_fault(void)
  *
  * @return The current pitch of the VESC IMU
  */
-float32_t vesc_serial_get_imu_pitch(void)
+int32_t vesc_serial_get_imu_pitch(void)
 {
     return comm_get_imu_data.pitch;
 }
@@ -712,7 +890,7 @@ float32_t vesc_serial_get_imu_pitch(void)
  *
  * @return The current roll of the VESC IMU
  */
-float32_t vesc_serial_get_imu_roll(void)
+int32_t vesc_serial_get_imu_roll(void)
 {
     return comm_get_imu_data.roll;
 }

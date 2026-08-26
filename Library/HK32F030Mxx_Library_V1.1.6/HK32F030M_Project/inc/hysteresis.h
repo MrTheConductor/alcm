@@ -40,9 +40,9 @@ typedef enum
  */
 typedef struct
 {
-    hys_state_t state;         // Current state of the hysteresis
-    float32_t set_threshold;   // Threshold to set the state
-    float32_t reset_threshold; // Threshold to reset the state
+    hys_state_t state;       // Current state of the hysteresis
+    int32_t set_threshold;   // Threshold to set the state
+    int32_t reset_threshold; // Threshold to reset the state
 } hysteresis_t;
 
 /**
@@ -52,12 +52,12 @@ typedef struct
  * @param set_threshold The threshold value at which the hysteresis will set.
  * @param reset_threshold The threshold value at which the hysteresis will reset.
  */
-lcm_status_t hysteresis_init(hysteresis_t *hysteresis, float32_t set_threshold,
-                             float32_t reset_threshold);
+lcm_status_t hysteresis_init(hysteresis_t *hysteresis, int32_t set_threshold,
+                             int32_t reset_threshold);
 
 /**
  * @brief Applies hysteresis logic to a given value.
  */
-hys_state_t apply_hysteresis(hysteresis_t *hysteresis, float32_t value);
+hys_state_t apply_hysteresis(hysteresis_t *hysteresis, int32_t value);
 
 #endif // HYSTERESIS_H

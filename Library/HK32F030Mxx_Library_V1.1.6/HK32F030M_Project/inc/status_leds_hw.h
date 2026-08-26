@@ -43,7 +43,7 @@ typedef struct
 
 void status_leds_hw_init(const status_leds_color_t *buffer);
 void status_leds_hw_refresh(void);
-void status_leds_hw_set_brightness(float32_t brightness);
+void status_leds_hw_set_brightness(uint8_t brightness);
 void status_leds_hw_enable(bool_t enable);
 
 #endif

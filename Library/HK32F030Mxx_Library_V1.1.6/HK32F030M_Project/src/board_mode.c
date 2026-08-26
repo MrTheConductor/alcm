@@ -17,7 +17,6 @@
  * with ALCM. If not, see <https://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
-#include <math.h>
 
 #include "board_mode.h"
 #include "event_queue.h"
@@ -34,6 +33,9 @@ EVENT_HANDLER(board_mode, fault);
 EVENT_HANDLER(board_mode, footpad_changed);
 EVENT_HANDLER(board_mode, vesc_alive);
 EVENT_HANDLER(board_mode, duty_cycle_changed);
+#ifdef ENABLE_APP_INTEGRATION
+EVENT_HANDLER(board_mode, locked);
+#endif
 
 // Timer handlers
 void board_mode_idle_timer_handler(uint32_t system_tick);
@@ -81,34 +83,37 @@ lcm_status_t board_mode_init(void)
 #if defined(ENABLE_IMU_EVENTS)
     SUBSCRIBE_EVENT(board_mode, EVENT_IMU_ROLL_CHANGED, command);
 #endif
+#ifdef ENABLE_APP_INTEGRATION
+    SUBSCRIBE_EVENT(board_mode, EVENT_VESC_LOCKED_CHANGED, locked);
+#endif
 
     // Initialize hysteresis values
     if (LCM_SUCCESS != hysteresis_init(&stopped_rpm_hysteresis, STOPPED_RPM_THRESHOLD,
-                                       STOPPED_RPM_THRESHOLD - (STOPPED_RPM_THRESHOLD * 0.1f)))
+                                       STOPPED_RPM_THRESHOLD - (STOPPED_RPM_THRESHOLD / 10)))
     {
         status = LCM_ERROR;
     }
 
     if (LCM_SUCCESS != hysteresis_init(&slow_rpm_hysteresis, SLOW_RPM_THRESHOLD,
-                                       SLOW_RPM_THRESHOLD - (SLOW_RPM_THRESHOLD * 0.1f)))
+                                       SLOW_RPM_THRESHOLD - (SLOW_RPM_THRESHOLD / 10)))
     {
         status = LCM_ERROR;
     }
 
     if (LCM_SUCCESS != hysteresis_init(&danger_hysteresis, DUTY_CYCLE_DANGER_THRESHOLD,
-                                       DUTY_CYCLE_DANGER_THRESHOLD - 5.0f))
+                                       DUTY_CYCLE_DANGER_THRESHOLD - 50)) // tenths of a %
     {
         status = LCM_ERROR;
     }
 
     if (LCM_SUCCESS != hysteresis_init(&warning_hysteresis, DUTY_CYCLE_WARNING_THRESHOLD,
-                                       DUTY_CYCLE_WARNING_THRESHOLD - 5.0f))
+                                       DUTY_CYCLE_WARNING_THRESHOLD - 50)) // tenths of a %
     {
         status = LCM_ERROR;
     }
 
 #if defined(ENABLE_IMU_EVENTS)
-    if (LCM_SUCCESS != hysteresis_init(&roll_hysteresis,  45.0f, 40.0f)) // degrees
+    if (LCM_SUCCESS != hysteresis_init(&roll_hysteresis, 45000, 40000)) // millidegrees
     {
         status = LCM_ERROR;
     }
@@ -214,6 +219,14 @@ void set_board_mode(board_mode_t mode, board_submode_t submode)
                 cancel_timer(board_mode_idle_timer_id);
             }
             break;
+        case BOARD_MODE_DISABLED:
+            // Locked by the VESC - stay powered on indefinitely until unlocked
+            if (board_mode_idle_timer_id != INVALID_TIMER_ID &&
+                is_timer_active(board_mode_idle_timer_id))
+            {
+                cancel_timer(board_mode_idle_timer_id);
+            }
+            break;
         default:
             // Do nothing
             break;
@@ -302,7 +315,8 @@ EVENT_HANDLER(board_mode, command)
             // roll_hysteresis.state directly against the call's return value is
             // undefined behavior (unsequenced read/write of the same object).
             hys_state_t previous_roll_state = roll_hysteresis.state;
-            hys_state_t new_roll_state = apply_hysteresis(&roll_hysteresis, fabsf(data->imu_roll));
+            hys_state_t new_roll_state =
+                apply_hysteresis(&roll_hysteresis, (data->imu_roll < 0) ? -data->imu_roll : data->imu_roll);
 
             if (previous_roll_state != new_roll_state) {
                 // If the board is on its side, transition to dozing idle mode
@@ -382,7 +396,7 @@ void board_mode_idle_timer_handler(uint32_t system_tick)
  */
 void update_riding_submode()
 {
-    float duty_cycle = vesc_serial_get_duty_cycle();
+    int16_t duty_cycle = vesc_serial_get_duty_cycle();
     int32_t rpm = vesc_serial_get_rpm();
 
 #ifdef ENABLE_IMU_EVENTS
@@ -411,7 +425,7 @@ void update_riding_submode()
         }
         // No else required - already in warning submode
     }
-    else if (apply_hysteresis(&slow_rpm_hysteresis, (float)abs(rpm)) == STATE_SET)
+    else if (apply_hysteresis(&slow_rpm_hysteresis, abs(rpm)) == STATE_SET)
     {
         if (board_submode != BOARD_SUBMODE_RIDING_NORMAL)
         {
@@ -419,7 +433,7 @@ void update_riding_submode()
         }
         // No else required - already in normal submode
     }
-    else if (apply_hysteresis(&stopped_rpm_hysteresis, (float)abs(rpm)) == STATE_SET)
+    else if (apply_hysteresis(&stopped_rpm_hysteresis, abs(rpm)) == STATE_SET)
     {
         if (board_submode != BOARD_SUBMODE_RIDING_SLOW)
         {
@@ -484,7 +498,7 @@ EVENT_HANDLER(board_mode, rpm_changed)
  *
  * @param event The type of event that occurred, specified as an event_type_t
  *              enumeration
- * @param duty_cycle The new duty cycle value, specified as a float
+ * @param duty_cycle The new duty cycle value, tenths of a percent
  */
 EVENT_HANDLER(board_mode, duty_cycle_changed)
 {
@@ -523,13 +537,37 @@ EVENT_HANDLER(board_mode, fault)
          * Emergency fault occurred, transition to internal fault mode 
          */
         case EVENT_EMERGENCY_FAULT:
-            // Intentional fallthrough 
+            // Intentional fallthrough
         default:
             // Unexpected event
             set_board_mode(BOARD_MODE_FAULT, BOARD_SUBMODE_FAULT_INTERNAL);
             break;
     }
 }
+
+#ifdef ENABLE_APP_INTEGRATION
+/**
+ * @brief Handles refloat lock state changes
+ *
+ * When the VESC reports the board as locked (refloat's phone-app "Lock"
+ * feature), transitions unconditionally to BOARD_MODE_DISABLED, mirroring
+ * how fault entry is unconditional. refloat itself refuses to lock a board
+ * that is actively running, so this should never be observed mid-ride.
+ * Unlocking only returns to BOARD_MODE_IDLE/BOARD_SUBMODE_IDLE_ACTIVE if
+ * still disabled, so a stray event can't clobber an unrelated mode.
+ */
+EVENT_HANDLER(board_mode, locked)
+{
+    if (data->enable)
+    {
+        set_board_mode(BOARD_MODE_DISABLED, BOARD_SUBMODE_UNDEFINED);
+    }
+    else if (board_mode == BOARD_MODE_DISABLED)
+    {
+        set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
+    }
+}
+#endif
 
 /**
  * @brief Handles footpad state changes

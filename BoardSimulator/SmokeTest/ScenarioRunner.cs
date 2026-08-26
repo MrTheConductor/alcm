@@ -12,7 +12,7 @@ record StepResult(string Name, bool Passed, string Detail);
 ///
 /// Supported step types:
 ///   "await"    – advance until a matching event fires (or timeout)
-///   "inject"   – set hardware inputs (footpads, RPM, battery, button)
+///   "inject"   – set hardware inputs (footpads, RPM, battery, button, refloat LCM state)
 ///   "run_for"  – advance a fixed duration and evaluate assert_* checks
 class ScenarioRunner
 {
@@ -152,6 +152,24 @@ class ScenarioRunner
 
         if (step.TryGetProperty("imu_roll_deg", out var roll))
             _engine.SetImuRoll(roll.GetSingle());
+
+        if (step.TryGetProperty("refloat_installed", out var refloatInstalled))
+            _engine.SetRefloatInstalled(refloatInstalled.GetBoolean());
+
+        if (step.TryGetProperty("external_leds_enabled", out var externalLeds))
+            _engine.SetExternalLedsEnabled(externalLeds.GetBoolean());
+
+        if (step.TryGetProperty("refloat_locked", out var refloatLocked))
+            _engine.SetLocked(refloatLocked.GetBoolean());
+
+        if (step.TryGetProperty("lcm_headlight_brightness_pct", out var lcmHeadlight))
+            _engine.SetLcmHeadlightBrightnessPercent(lcmHeadlight.GetByte());
+
+        if (step.TryGetProperty("lcm_headlight_idle_brightness_pct", out var lcmHeadlightIdle))
+            _engine.SetLcmHeadlightIdleBrightnessPercent(lcmHeadlightIdle.GetByte());
+
+        if (step.TryGetProperty("lcm_status_brightness_pct", out var lcmStatus))
+            _engine.SetLcmStatusBrightnessPercent(lcmStatus.GetByte());
 
         Console.WriteLine($"    Inject: {name}");
     }

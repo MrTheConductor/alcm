@@ -34,7 +34,8 @@ typedef enum
     BOARD_MODE_IDLE,        /**< Board is idle. */
     BOARD_MODE_RIDING,      /**< Board is active and in riding mode. */
     BOARD_MODE_CHARGING,    /**< Board is charging. */
-    BOARD_MODE_FAULT        /**< Board has encountered a fault. */
+    BOARD_MODE_FAULT,       /**< Board has encountered a fault. */
+    BOARD_MODE_DISABLED     /**< Board is locked/disabled by the VESC (refloat "Lock"). */
 } board_mode_t;
 
 /**

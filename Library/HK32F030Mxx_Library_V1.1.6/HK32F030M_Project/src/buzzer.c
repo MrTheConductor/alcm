@@ -23,6 +23,7 @@
 #include "buzzer_hw.h"
 #include "config.h"
 #include "event_queue.h"
+#include "footpads.h"
 #include "function_generator.h"
 #include "settings.h"
 #include "timer.h"
@@ -43,11 +44,18 @@
 static settings_t *buzzer_settings = NULL;
 static function_generator_t fg = {0};
 static timer_id_t buzzer_timer_id = INVALID_TIMER_ID;
+#ifdef ENABLE_APP_INTEGRATION
+static bool_t inhibited_button_held = false;
+#endif
 
 // Forward declarations
 // Event handlers
 EVENT_HANDLER(buzzer, command);
 EVENT_HANDLER(buzzer, board_mode);
+#ifdef ENABLE_APP_INTEGRATION
+EVENT_HANDLER(buzzer, inhibited_input);
+static void update_inhibited_tone(void);
+#endif
 
 // Timer callbacks
 TIMER_CALLBACK(buzzer, tick);
@@ -73,6 +81,11 @@ lcm_status_t buzzer_init(void)
         SUBSCRIBE_EVENT(buzzer, EVENT_COMMAND_NACK, command);
         SUBSCRIBE_EVENT(buzzer, EVENT_COMMAND_TOGGLE_BEEPER, command);
         SUBSCRIBE_EVENT(buzzer, EVENT_BOARD_MODE_CHANGED, board_mode);
+#ifdef ENABLE_APP_INTEGRATION
+        SUBSCRIBE_EVENT(buzzer, EVENT_BUTTON_DOWN, inhibited_input);
+        SUBSCRIBE_EVENT(buzzer, EVENT_BUTTON_UP, inhibited_input);
+        SUBSCRIBE_EVENT(buzzer, EVENT_FOOTPAD_CHANGED, inhibited_input);
+#endif
 
         // Set initial state
         buzzer_off();
@@ -108,7 +121,7 @@ TIMER_CALLBACK(buzzer, tick)
 {
     // Ignore unused parameter
     (void)system_tick;
-    float sample = 0.0f;
+    fixed16_t sample = 0;
 
     if (function_generator_next_sample(&fg, &sample) != LCM_SUCCESS)
     {
@@ -116,7 +129,7 @@ TIMER_CALLBACK(buzzer, tick)
     }
     else
     {
-        if (sample <= 0.0f)
+        if (sample <= 0)
         {
             buzzer_off();
         }
@@ -135,7 +148,7 @@ TIMER_CALLBACK(buzzer, tick)
 void buzzer_play_sequence(uint16_t sequence, bool_t repeat)
 {
     function_generator_init(&fg, FUNCTION_GENERATOR_SEQUENCE, SEQUENCE_PERIOD_MS, TICK_INTERVAL_MS,
-                            0.0f, 1.0f, repeat ? FG_FLAG_REPEAT : 0, sequence);
+                            FIXED16(0.0), FIXED16(1.0), repeat ? FG_FLAG_REPEAT : 0, sequence);
 
     // Start the timer
     if (buzzer_timer_id == INVALID_TIMER_ID || !is_timer_active(buzzer_timer_id))
@@ -171,6 +184,30 @@ EVENT_HANDLER(buzzer, command)
     }
 }
 
+#ifdef ENABLE_APP_INTEGRATION
+/**
+ * @brief Starts or stops the inhibited-input buzzer tone
+ *
+ * Bypasses the sequence/timer machinery entirely (safe here since
+ * BOARD_MODE_DISABLED entry already cancels any prior sequence via
+ * buzzer_reset_sequence() below) - a direct buzzer_on()/buzzer_off() call is
+ * all a constant tone needs. Footpad state is read live via
+ * footpads_get_state() rather than cached, so a foot already resting on a
+ * pad when locked sounds the tone immediately, not just on the next press.
+ */
+static void update_inhibited_tone(void)
+{
+    if (inhibited_button_held || footpads_get_state() != NONE_FOOTPAD)
+    {
+        buzzer_on();
+    }
+    else
+    {
+        buzzer_off();
+    }
+}
+#endif
+
 /**
  * @brief Event handler for the buzzer module board mode events
  *
@@ -178,6 +215,12 @@ EVENT_HANDLER(buzzer, command)
  */
 EVENT_HANDLER(buzzer, board_mode)
 {
+#ifdef ENABLE_APP_INTEGRATION
+    // Any mode transition invalidates held-input tracking, so a stale "held"
+    // flag can never leak across a disable/enable cycle
+    inhibited_button_held = false;
+#endif
+
     switch (data->board_mode.mode)
     {
     case BOARD_MODE_IDLE:
@@ -227,8 +270,45 @@ EVENT_HANDLER(buzzer, board_mode)
             break;
         }
         break;
+#ifdef ENABLE_APP_INTEGRATION
+    case BOARD_MODE_DISABLED:
+        // Silent unless an input is already held (e.g. a foot already
+        // resting on a pad when the lock command arrives)
+        update_inhibited_tone();
+        break;
+#endif
     default:
         buzzer_reset_sequence();
         break;
     }
 }
+
+#ifdef ENABLE_APP_INTEGRATION
+/**
+ * @brief Event handler for inhibited input while the board is disabled (locked)
+ *
+ * While locked, button/footpad input is inhibited everywhere else
+ * (command_processor.c ignores it entirely) - this handler is the sole
+ * response: a continuous tone for as long as either input is held.
+ */
+EVENT_HANDLER(buzzer, inhibited_input)
+{
+    if (board_mode_get() != BOARD_MODE_DISABLED)
+    {
+        return;
+    }
+
+    if (event == EVENT_BUTTON_DOWN)
+    {
+        inhibited_button_held = true;
+    }
+    else if (event == EVENT_BUTTON_UP)
+    {
+        inhibited_button_held = false;
+    }
+    // Else: EVENT_FOOTPAD_CHANGED just needs to trigger a re-check below -
+    // footpad state itself is read live in update_inhibited_tone()
+
+    update_inhibited_tone();
+}
+#endif

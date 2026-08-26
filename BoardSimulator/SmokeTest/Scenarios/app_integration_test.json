@@ -1,0 +1,229 @@
+{
+  // ─────────────────────────────────────────────────────────────────────────
+  // ALCM App Integration (refloat COMMAND_LCM_POLL) Smoke Test
+  //
+  // Verifies the end-to-end wire path for phone-app brightness control and
+  // the phone-app "Lock" feature: vesc_serial.c's periodic poll →
+  // VescSimulator's simulated refloat reply
+  // (VescProtocol.GenerateLcmPollResponseMessage) → process_comm_custom_app_data()
+  // parsing the COMMAND_LCM_POLL response → settings.headlight_brightness /
+  // BOARD_MODE_DISABLED updated → headlights.c/status_leds.c/buzzer.c
+  // reacting accordingly.
+  //
+  // See boot_test.json for the general scenario format reference. This
+  // scenario additionally uses:
+  //   "inject": "refloat_installed" (bool) — simulates a VESC that doesn't
+  //             run refloat at all; when false, COMM_CUSTOM_APP_DATA gets
+  //             no reply whatsoever.
+  //             "external_leds_enabled" (bool) — mirrors refloat's own
+  //             hardware.leds.mode having "External" checked; when false,
+  //             refloat is installed and replies, but only with the 2-byte
+  //             header (no brightness bytes).
+  //             "lcm_headlight_brightness_pct" / "lcm_headlight_idle_brightness_pct"
+  //             / "lcm_status_brightness_pct" (0-100) — the simulated phone
+  //             app's slider values, sent in the COMMAND_LCM_POLL reply.
+  //             "refloat_locked" (bool) — simulates refloat reporting
+  //             RunState.STATE_DISABLED (the phone app's "Lock" feature) in
+  //             the poll reply's state byte. Requires external_leds_enabled
+  //             (and refloat_installed) true, since the state byte only
+  //             rides in a reply that's actually sent.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  "name": "ALCM App Integration Smoke Test",
+  "description": "Boots the ALCM firmware, engages riding, then confirms a simulated refloat COMMAND_LCM_POLL reply changes headlight brightness - and that a missing/short reply changes nothing.",
+
+  "vesc": {
+    "battery_voltage": 58.8
+  },
+
+  "steps": [
+
+    // ─── Phase 1: Boot sequence ────────────────────────────────────────────
+
+    {
+      "phase": "Boot sequence",
+      "type": "await",
+      "name": "Power latch engaged",
+      "event": "power",
+      "where": { "enabled": true },
+      "timeout_ms": 500
+    },
+    {
+      "type": "await",
+      "name": "VESC communication active",
+      "event": "vesc_request",
+      "timeout_ms": 3000
+    },
+
+    // ─── Phase 2: Riding engagement (locally-controlled default brightness) ─
+    // With no app connected, headlight brightness should settle at the
+    // locally-configured default (80%, ~819/1024 once direction fade-in
+    // completes), confirming the pre-app-integration baseline.
+
+    {
+      "phase": "Riding (local default brightness)",
+      "type": "inject",
+      "name": "both footpads at 3.0V, RPM = 500",
+      "footpad_left_v": 3.0,
+      "footpad_right_v": 3.0,
+      "rpm": 500
+    },
+    {
+      "type": "await",
+      "name": "Headlight settles at local default brightness",
+      "event": "headlight",
+      "where": { "brightness_gt": 700 },
+      "timeout_ms": 1000
+    },
+
+    // ─── Phase 3: App-integration brightness override ──────────────────────
+    // Simulate refloat reporting a phone-app-set headlight brightness of 95%
+    // (~972/1024) — higher than the 80% local default, so a clean threshold
+    // (900) unambiguously distinguishes "applied" from "still local default".
+    //
+    // Note: this scenario doesn't assert on status_led events here. Both
+    // headlights.c and status_leds.c are broadcast every
+    // EVENT_COMMAND_SETTINGS_CHANGED regardless of context (each decides for
+    // itself whether the context is relevant), and status_leds.c's battery
+    // display animation can independently produce status_led events on its
+    // own schedule - so "a status_led event fired" doesn't reliably prove a
+    // brightness change was actually applied. That regression (a missing
+    // status_leds_refresh() call after status_leds_hw_set_brightness() in
+    // status_leds.c) was instead verified by reading the hardware layer
+    // directly: status_leds_hw_set_brightness() only stores a scale factor
+    // and has no other side effect, confirmed against the real Keil build.
+
+    {
+      "phase": "App-integration brightness override",
+      "type": "inject",
+      "name": "refloat reports 95% headlight / 60% status brightness",
+      "refloat_installed": true,
+      "external_leds_enabled": true,
+      "lcm_headlight_brightness_pct": 95,
+      "lcm_headlight_idle_brightness_pct": 20,
+      "lcm_status_brightness_pct": 60
+    },
+    {
+      "type": "await",
+      "name": "Headlight brightness updated from refloat poll reply",
+      // Next 250ms VESC poll cycle carries the COMMAND_LCM_POLL request/reply
+      "event": "headlight",
+      "where": { "brightness_gt": 900 },
+      "timeout_ms": 600
+    },
+
+    // ─── Phase 4: External LEDs disabled (refloat installed, LCM off) ──────
+    // refloat still replies, but with just the 2-byte header (no brightness
+    // bytes) — process_comm_custom_app_data() sees a too-short packet and
+    // ignores it, so the last-applied 95% brightness must stick (no headlight
+    // event fires at all, since nothing changes).
+
+    {
+      "phase": "External LEDs disabled (refloat installed, truncated reply)",
+      "type": "inject",
+      "name": "refloat hardware.leds.mode has External unchecked",
+      "external_leds_enabled": false
+    },
+    {
+      "type": "run_for",
+      "name": "Brightness unaffected by truncated reply (600ms)",
+      "duration_ms": 600,
+      "checks": [
+        {
+          "name": "No headlight brightness change",
+          "assert_no": { "event": "headlight" }
+        }
+      ]
+    },
+
+    // ─── Phase 5: refloat not installed at all ──────────────────────────────
+    // The VESC doesn't respond to COMM_CUSTOM_APP_DATA at all (like any
+    // firmware that doesn't understand the command) — same expectation as
+    // phase 4: the last-applied 95% brightness must stick.
+
+    {
+      "phase": "Refloat not installed",
+      "type": "inject",
+      "name": "VESC firmware doesn't understand COMM_CUSTOM_APP_DATA",
+      "refloat_installed": false,
+      "external_leds_enabled": true
+    },
+    {
+      "type": "run_for",
+      "name": "Brightness unaffected by missing reply (600ms)",
+      "duration_ms": 600,
+      "checks": [
+        {
+          "name": "No headlight brightness change",
+          "assert_no": { "event": "headlight" }
+        }
+      ]
+    },
+
+    // ─── Phase 6: Locked (refloat's phone-app "Lock" feature) ──────────────
+    // refloat reports RunState.STATE_DISABLED (send_state low nibble 0xF) in
+    // the poll reply's state byte - ALCM should enter BOARD_MODE_DISABLED:
+    // headlight forced off, status LEDs start the breathing-red animation,
+    // and holding the button should sound the inhibited-input buzzer tone.
+    // Re-enables refloat/external LEDs first, since a locked byte can only
+    // ride in a reply that's actually sent (phases 4/5 left both off).
+
+    {
+      "phase": "Locked (refloat Lock feature)",
+      "type": "inject",
+      "name": "refloat installed, external LEDs on, board reported locked",
+      "refloat_installed": true,
+      "external_leds_enabled": true,
+      "refloat_locked": true
+    },
+    {
+      "type": "run_for",
+      "name": "Locking forces the headlight off and starts the status LED animation",
+      "duration_ms": 600,
+      "checks": [
+        {
+          "name": "Headlight forced off",
+          "assert_no": { "event": "headlight", "where": { "brightness_gt": 0 } }
+        },
+        {
+          "name": "Status LED breathing animation started",
+          "assert_any": { "event": "status_led" }
+        }
+      ]
+    },
+    {
+      "type": "inject",
+      "name": "hold the button while locked",
+      "button_pressed": true
+    },
+    {
+      "type": "run_for",
+      "name": "Held input sounds the inhibited-input buzzer tone",
+      "duration_ms": 100,
+      "checks": [
+        {
+          "name": "Buzzer sounds while held",
+          "assert_any": { "event": "buzzer" }
+        }
+      ]
+    },
+    {
+      "type": "inject",
+      "name": "release the button, then unlock",
+      "button_pressed": false,
+      "refloat_locked": false
+    },
+    {
+      "type": "run_for",
+      "name": "Unlocking returns the headlight to normal brightness",
+      "duration_ms": 600,
+      "checks": [
+        {
+          "name": "Headlight back on",
+          "assert_any": { "event": "headlight", "where": { "brightness_gt": 700 } }
+        }
+      ]
+    }
+
+  ]
+}

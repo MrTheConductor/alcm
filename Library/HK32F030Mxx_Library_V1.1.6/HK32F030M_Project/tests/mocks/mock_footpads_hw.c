@@ -28,12 +28,12 @@ void footpads_hw_init(void)
     function_called();
 }
 
-float footpads_hw_get_left(void)
+uint16_t footpads_hw_get_left(void)
 {
-    return mock_type(float);
+    return mock_type(uint16_t);
 }
 
-float footpads_hw_get_right(void)
+uint16_t footpads_hw_get_right(void)
 {
-    return mock_type(float);
+    return mock_type(uint16_t);
 }

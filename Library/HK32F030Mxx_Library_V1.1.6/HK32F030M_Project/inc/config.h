@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -42,8 +42,8 @@
 //------------------------------------------------------------------------------
 #define STOPPED_RPM_THRESHOLD 20           // RPM threshold for stopped
 #define SLOW_RPM_THRESHOLD 2000            // RPM threshold for slow riding speed (3-4 MPH)
-#define DUTY_CYCLE_DANGER_THRESHOLD 90.0f  // Duty cycle threshold for danger zone
-#define DUTY_CYCLE_WARNING_THRESHOLD 80.0f // Duty cycle threshold for warning zone
+#define DUTY_CYCLE_DANGER_THRESHOLD 900  // Duty cycle threshold for danger zone (tenths of a %)
+#define DUTY_CYCLE_WARNING_THRESHOLD 800 // Duty cycle threshold for warning zone (tenths of a %)
 
 //------------------------------------------------------------------------------
 // Button configuration 
@@ -57,7 +57,11 @@
 // Event queue configuration 
 //------------------------------------------------------------------------------
 #define EVENT_QUEUE_SIZE 8U   // Maximum number of events in the queue
-#define MAX_SUBSCRIPTIONS 32U // Maximum number of event subscribers
+// Overflow subscriber slots, used only by events with more than one
+// subscriber (each event's first subscriber lives in a dedicated head slot).
+// Currently 17 are in use (43 subscriptions across 26 distinct events);
+// exceeding this faults loudly at init with EMERGENCY_FAULT_OVERFLOW.
+#define MAX_SUBSCRIPTIONS 20U
 #define MAX_TIMERS 8U         // Maximum number of system timers
 
 // Headlights configuration
@@ -66,7 +70,7 @@
 #define SLOW_BREATH_PERIOD 6000U            // How fast to "breathe" headlights when dozing (ms)
 #define FAST_BREATH_PERIOD 500U             // How fast to flash headlights (ms)
 #define FADE_PERIOD 500U                    // How long to fade out headlights on disable (ms) 
-#define RPM_HYSTERISIS 40.0f                // How many ERPMs (+/-) to allow before changing direction
+#define RPM_HYSTERISIS 40                   // How many ERPMs (+/-) to allow before changing direction
 #define HEADLIGHTS_IDLE_BRIGHTNESS 0.20f    // Brightness of headlights when idle (0.0 to 1.0) 
 
 //------------------------------------------------------------------------------
@@ -79,9 +83,10 @@
 // board like an XR.
 #define ENABLE_STATUS_LEDS 1                      // Enable the status LEDs
 #define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down
-#define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
-#define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
+#define LOW_BATTERY_THRESHOLD (150)               // Threshold for yellow/always on indicator (tenths of a %)
+#define CRITICAL_BATTERY_THRESHOLD (50)           // Threshold for red flashing indicator (tenths of a %)
 #define STATUS_LEDS_SCAN_SPEED (2000U)            // Speed of the scan animation (ms)
+#define DISABLED_BREATH_PERIOD (3000U)            // Speed of the locked/disabled breathing animation (ms)
 
 //------------------------------------------------------------------------------
 // Animation configuration 
@@ -90,11 +95,11 @@
 // and to look cool.
 //
 // Individual animations can be enabled or disable to save code space. 
-#undef ENABLE_FIRE_ANIMATION            // Fire effect animation 
-#define ENABLE_KNIGHT_RIDER_ANIMATION 1 // Red "knight rider" animation
-#undef ENABLE_EXPANDING_PULSE_ANIMATION // Expanding pulse animation 
-#undef ENABLE_PULSE_ANIMATION           // Expanding pulse animation 
-#undef ENABLE_THE_FUZZ_ANIMATION        // The Fuzz animation 
+#define ENABLE_FIRE_ANIMATION 1            // Fire effect animation 
+#define ENABLE_KNIGHT_RIDER_ANIMATION 1    // Red "knight rider" animation
+#define ENABLE_EXPANDING_PULSE_ANIMATION 1 // Expanding pulse animation 
+#define ENABLE_IMPLODING_PULSE_ANIMATION 1 // Imploding pulse animation 
+#define ENABLE_THE_FUZZ_ANIMATION 1        // The Fuzz animation 
 
 //------------------------------------------------------------------------------
 // Buzzer configuration 
@@ -135,6 +140,14 @@
 //
 // This can be undefined to save code space if IMU features are not wanted.
 #define ENABLE_IMU_EVENTS 1 // Enable IMU events
+
+//------------------------------------------------------------------------------
+// App integration configuration
+//------------------------------------------------------------------------------
+// Allows phone apps that talk to the refloat VESC package to control
+// headlight and status bar brightness remotely, by polling refloat's
+// COMMAND_LCM_POLL custom app data command over the existing VESC UART link.
+#define ENABLE_APP_INTEGRATION 1 // Enable phone-app brightness control via refloat
 
 //------------------------------------------------------------------------------
 // Debug configuration
