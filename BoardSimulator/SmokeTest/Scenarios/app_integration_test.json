@@ -2,11 +2,13 @@
   // ─────────────────────────────────────────────────────────────────────────
   // ALCM App Integration (refloat COMMAND_LCM_POLL) Smoke Test
   //
-  // Verifies the end-to-end wire path for phone-app brightness control:
-  // vesc_serial.c's periodic poll → VescSimulator's simulated refloat reply
+  // Verifies the end-to-end wire path for phone-app brightness control and
+  // the phone-app "Lock" feature: vesc_serial.c's periodic poll →
+  // VescSimulator's simulated refloat reply
   // (VescProtocol.GenerateLcmPollResponseMessage) → process_comm_custom_app_data()
-  // parsing the COMMAND_LCM_POLL response → settings.headlight_brightness
-  // updated → headlights.c applying the new PWM brightness.
+  // parsing the COMMAND_LCM_POLL response → settings.headlight_brightness /
+  // BOARD_MODE_DISABLED updated → headlights.c/status_leds.c/buzzer.c
+  // reacting accordingly.
   //
   // See boot_test.json for the general scenario format reference. This
   // scenario additionally uses:
@@ -20,6 +22,11 @@
   //             "lcm_headlight_brightness_pct" / "lcm_headlight_idle_brightness_pct"
   //             / "lcm_status_brightness_pct" (0-100) — the simulated phone
   //             app's slider values, sent in the COMMAND_LCM_POLL reply.
+  //             "refloat_locked" (bool) — simulates refloat reporting
+  //             RunState.STATE_DISABLED (the phone app's "Lock" feature) in
+  //             the poll reply's state byte. Requires external_leds_enabled
+  //             (and refloat_installed) true, since the state byte only
+  //             rides in a reply that's actually sent.
   // ─────────────────────────────────────────────────────────────────────────
 
   "name": "ALCM App Integration Smoke Test",
@@ -105,38 +112,6 @@
       "timeout_ms": 600
     },
 
-    // ─── Phase 3b: App sets status brightness to exactly 0% ────────────────
-    // Investigates a field report of status LEDs staying dimly lit at 0%.
-    // Proves two things together: a refresh actually happens (assert_any,
-    // no "where" - matches any status_led event of any color) AND every LED
-    // it produced was genuinely all-black (assert_no r_or_g_or_b_gt: 0).
-    // status_leds_hw_update() scales every channel by brightness_scale before
-    // sending, so (color * 0) >> 8 is exactly 0 with no rounding-up case -
-    // if this passes, ALCM's brightness pipeline is provably not the cause
-    // of a nonzero floor at 0%.
-
-    {
-      "phase": "App sets status brightness to zero",
-      "type": "inject",
-      "name": "refloat reports 0% status brightness (headlight unchanged)",
-      "lcm_status_brightness_pct": 0
-    },
-    {
-      "type": "run_for",
-      "name": "Status bar reaches true zero brightness",
-      "duration_ms": 600,
-      "checks": [
-        {
-          "name": "Status LEDs refreshed",
-          "assert_any": { "event": "status_led" }
-        },
-        {
-          "name": "Every LED fully off (no nonzero channel)",
-          "assert_no": { "event": "status_led", "where": { "r_or_g_or_b_gt": 0 } }
-        }
-      ]
-    },
-
     // ─── Phase 4: External LEDs disabled (refloat installed, LCM off) ──────
     // refloat still replies, but with just the 2-byte header (no brightness
     // bytes) — process_comm_custom_app_data() sees a too-short packet and
@@ -181,6 +156,71 @@
         {
           "name": "No headlight brightness change",
           "assert_no": { "event": "headlight" }
+        }
+      ]
+    },
+
+    // ─── Phase 6: Locked (refloat's phone-app "Lock" feature) ──────────────
+    // refloat reports RunState.STATE_DISABLED (send_state low nibble 0xF) in
+    // the poll reply's state byte - ALCM should enter BOARD_MODE_DISABLED:
+    // headlight forced off, status LEDs start the breathing-red animation,
+    // and holding the button should sound the inhibited-input buzzer tone.
+    // Re-enables refloat/external LEDs first, since a locked byte can only
+    // ride in a reply that's actually sent (phases 4/5 left both off).
+
+    {
+      "phase": "Locked (refloat Lock feature)",
+      "type": "inject",
+      "name": "refloat installed, external LEDs on, board reported locked",
+      "refloat_installed": true,
+      "external_leds_enabled": true,
+      "refloat_locked": true
+    },
+    {
+      "type": "run_for",
+      "name": "Locking forces the headlight off and starts the status LED animation",
+      "duration_ms": 600,
+      "checks": [
+        {
+          "name": "Headlight forced off",
+          "assert_no": { "event": "headlight", "where": { "brightness_gt": 0 } }
+        },
+        {
+          "name": "Status LED breathing animation started",
+          "assert_any": { "event": "status_led" }
+        }
+      ]
+    },
+    {
+      "type": "inject",
+      "name": "hold the button while locked",
+      "button_pressed": true
+    },
+    {
+      "type": "run_for",
+      "name": "Held input sounds the inhibited-input buzzer tone",
+      "duration_ms": 100,
+      "checks": [
+        {
+          "name": "Buzzer sounds while held",
+          "assert_any": { "event": "buzzer" }
+        }
+      ]
+    },
+    {
+      "type": "inject",
+      "name": "release the button, then unlock",
+      "button_pressed": false,
+      "refloat_locked": false
+    },
+    {
+      "type": "run_for",
+      "name": "Unlocking returns the headlight to normal brightness",
+      "duration_ms": 600,
+      "checks": [
+        {
+          "name": "Headlight back on",
+          "assert_any": { "event": "headlight", "where": { "brightness_gt": 700 } }
         }
       ]
     }

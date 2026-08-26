@@ -34,6 +34,9 @@ EVENT_HANDLER(board_mode, fault);
 EVENT_HANDLER(board_mode, footpad_changed);
 EVENT_HANDLER(board_mode, vesc_alive);
 EVENT_HANDLER(board_mode, duty_cycle_changed);
+#ifdef ENABLE_APP_INTEGRATION
+EVENT_HANDLER(board_mode, locked);
+#endif
 
 // Timer handlers
 void board_mode_idle_timer_handler(uint32_t system_tick);
@@ -80,6 +83,9 @@ lcm_status_t board_mode_init(void)
     SUBSCRIBE_EVENT(board_mode, EVENT_DUTY_CYCLE_CHANGED, duty_cycle_changed);
 #if defined(ENABLE_IMU_EVENTS)
     SUBSCRIBE_EVENT(board_mode, EVENT_IMU_ROLL_CHANGED, command);
+#endif
+#ifdef ENABLE_APP_INTEGRATION
+    SUBSCRIBE_EVENT(board_mode, EVENT_VESC_LOCKED_CHANGED, locked);
 #endif
 
     // Initialize hysteresis values
@@ -208,6 +214,14 @@ void set_board_mode(board_mode_t mode, board_submode_t submode)
             }
             break;
         case BOARD_MODE_FAULT:
+            if (board_mode_idle_timer_id != INVALID_TIMER_ID &&
+                is_timer_active(board_mode_idle_timer_id))
+            {
+                cancel_timer(board_mode_idle_timer_id);
+            }
+            break;
+        case BOARD_MODE_DISABLED:
+            // Locked by the VESC - stay powered on indefinitely until unlocked
             if (board_mode_idle_timer_id != INVALID_TIMER_ID &&
                 is_timer_active(board_mode_idle_timer_id))
             {
@@ -523,13 +537,37 @@ EVENT_HANDLER(board_mode, fault)
          * Emergency fault occurred, transition to internal fault mode 
          */
         case EVENT_EMERGENCY_FAULT:
-            // Intentional fallthrough 
+            // Intentional fallthrough
         default:
             // Unexpected event
             set_board_mode(BOARD_MODE_FAULT, BOARD_SUBMODE_FAULT_INTERNAL);
             break;
     }
 }
+
+#ifdef ENABLE_APP_INTEGRATION
+/**
+ * @brief Handles refloat lock state changes
+ *
+ * When the VESC reports the board as locked (refloat's phone-app "Lock"
+ * feature), transitions unconditionally to BOARD_MODE_DISABLED, mirroring
+ * how fault entry is unconditional. refloat itself refuses to lock a board
+ * that is actively running, so this should never be observed mid-ride.
+ * Unlocking only returns to BOARD_MODE_IDLE/BOARD_SUBMODE_IDLE_ACTIVE if
+ * still disabled, so a stray event can't clobber an unrelated mode.
+ */
+EVENT_HANDLER(board_mode, locked)
+{
+    if (data->enable)
+    {
+        set_board_mode(BOARD_MODE_DISABLED, BOARD_SUBMODE_UNDEFINED);
+    }
+    else if (board_mode == BOARD_MODE_DISABLED)
+    {
+        set_board_mode(BOARD_MODE_IDLE, BOARD_SUBMODE_IDLE_ACTIVE);
+    }
+}
+#endif
 
 /**
  * @brief Handles footpad state changes

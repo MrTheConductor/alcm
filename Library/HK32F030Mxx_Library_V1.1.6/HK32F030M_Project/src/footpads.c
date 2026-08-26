@@ -78,9 +78,12 @@ EVENT_HANDLER(footpads, board_mode_changed)
         switch (data->board_mode.mode)
         {
         // Enable footpads sampling timer when the board is in idle or
-        // riding mode
+        // riding mode, or disabled (locked) - sampling must keep running so
+        // footpad presses can still be detected to drive the inhibited-input
+        // buzzer tone while locked
         case BOARD_MODE_IDLE:
         case BOARD_MODE_RIDING:
+        case BOARD_MODE_DISABLED:
             if (footpads_timer_id == INVALID_TIMER_ID || !is_timer_active(footpads_timer_id))
             {
                 footpads_timer_id = set_timer(FOOTPADS_SAMPLE_INTERVAL,

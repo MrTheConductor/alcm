@@ -36,6 +36,7 @@ namespace BoardSimulator.ViewModels
         private bool _vescEnabled = true;
         private bool _refloatInstalled = true;
         private bool _externalLedsEnabled = true;
+        private bool _locked = false;
         private double _appHeadlightBrightness = 50;
         private double _appStatusBrightness = 50;
         private int _tickCounter = 0;
@@ -186,6 +187,19 @@ namespace BoardSimulator.ViewModels
                 if (SetProperty(ref _externalLedsEnabled, value))
                 {
                     _vesc.ExternalLedsEnabled = value;
+                }
+            }
+        }
+
+        // refloat's phone-app "Lock" feature (RunState.STATE_DISABLED)
+        public bool Locked
+        {
+            get => _locked;
+            set
+            {
+                if (SetProperty(ref _locked, value))
+                {
+                    _vesc.Locked = value;
                 }
             }
         }

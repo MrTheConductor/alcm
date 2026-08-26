@@ -86,6 +86,7 @@
 #define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
 #define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
 #define STATUS_LEDS_SCAN_SPEED (2000U)            // Speed of the scan animation (ms)
+#define DISABLED_BREATH_PERIOD (3000.0f)          // Speed of the locked/disabled breathing animation (ms)
 
 //------------------------------------------------------------------------------
 // Animation configuration 

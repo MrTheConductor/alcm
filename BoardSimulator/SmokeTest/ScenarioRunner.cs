@@ -159,6 +159,9 @@ class ScenarioRunner
         if (step.TryGetProperty("external_leds_enabled", out var externalLeds))
             _engine.SetExternalLedsEnabled(externalLeds.GetBoolean());
 
+        if (step.TryGetProperty("refloat_locked", out var refloatLocked))
+            _engine.SetLocked(refloatLocked.GetBoolean());
+
         if (step.TryGetProperty("lcm_headlight_brightness_pct", out var lcmHeadlight))
             _engine.SetLcmHeadlightBrightnessPercent(lcmHeadlight.GetByte());
 

@@ -51,11 +51,17 @@
 #define LCM_PACKAGE_ID 101
 #define LCM_COMMAND_POLL 24
 #define LCM_POLL_RESPONSE_MIN_LENGTH 15
+#define LCM_POLL_STATE_OFFSET 3
 #define LCM_POLL_HEADLIGHT_BRIGHTNESS_OFFSET 12
 #define LCM_POLL_STATUS_BRIGHTNESS_OFFSET 14
 /* Sentinel baseline value (out of the valid 0-100 range) meaning "no poll
  * reply has been seen yet for this channel". */
 #define LCM_BASELINE_UNSET 0xFFU
+/* Low nibble of the state byte at LCM_POLL_STATE_OFFSET: refloat's
+ * state_compat() (refloat/src/state.c) maps STATE_DISABLED to 0xF - this is
+ * how the phone app's "Lock" feature is signalled over the wire. */
+#define LCM_STATE_MASK 0x0FU
+#define LCM_STATE_DISABLED 0x0FU
 #endif
 
 #define SERIAL_BAUDRATE 115200U
@@ -104,6 +110,7 @@ static comm_get_imu_data_t comm_get_imu_data = {0};
 #ifdef ENABLE_APP_INTEGRATION
 static uint8_t headlight_remote_baseline = LCM_BASELINE_UNSET;
 static uint8_t status_remote_baseline = LCM_BASELINE_UNSET;
+static bool_t vesc_locked = false;
 #endif
 
 // Forward declarations
@@ -519,6 +526,19 @@ void process_comm_custom_app_data(const uint8_t *payload, uint8_t packet_length)
 
     settings = settings_get();
 
+    {
+        bool_t new_locked = (payload[LCM_POLL_STATE_OFFSET] & LCM_STATE_MASK) == LCM_STATE_DISABLED;
+
+        if (new_locked != vesc_locked)
+        {
+            event_data_t lock_data = {0};
+
+            vesc_locked = new_locked;
+            lock_data.enable = new_locked;
+            event_queue_push(EVENT_VESC_LOCKED_CHANGED, &lock_data);
+        }
+    }
+
     apply_lcm_brightness(&headlight_remote_baseline, payload[LCM_POLL_HEADLIGHT_BRIGHTNESS_OFFSET],
                           &settings->headlight_brightness,
                           COMMAND_PROCESSOR_CONTEXT_HEADLIGHT_BRIGHTNESS);
@@ -659,6 +679,9 @@ EVENT_HANDLER(vesc_serial, board_mode_change)
     case BOARD_MODE_IDLE:
     case BOARD_MODE_RIDING:
     case BOARD_MODE_FAULT:
+    case BOARD_MODE_DISABLED:
+        // Polling must continue while disabled (locked) - it's the only way
+        // to ever learn the board has been unlocked again
         if (vesc_serial_tx_timerid == INVALID_TIMER_ID || !is_timer_active(vesc_serial_tx_timerid))
         {
             vesc_serial_tx_timerid =

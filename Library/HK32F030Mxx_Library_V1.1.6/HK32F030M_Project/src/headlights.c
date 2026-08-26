@@ -367,6 +367,8 @@ EVENT_HANDLER(headlights, state_change)
             mode_control = 1.0f;
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
             break;
+        case BOARD_MODE_DISABLED:
+            // Fall through intentional
         case BOARD_MODE_CHARGING:
             // Fall through intentional
         case BOARD_MODE_OFF:

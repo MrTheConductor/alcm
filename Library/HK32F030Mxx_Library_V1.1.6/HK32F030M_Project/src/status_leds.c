@@ -618,7 +618,12 @@ void status_leds_handle_idle_config(event_type_t event)
     }
 }
 
-void status_leds_handle_riding_danger(event_type_t event)
+/**
+ * @brief Shared solid-red sine-brightness "pulse/breathe" animation, used by
+ * both riding-danger (fast pulse) and disabled/locked (slow breathe) - the
+ * only difference between them is how fast the brightness cycles.
+ */
+static void status_leds_handle_solid_red_pulse(event_type_t event, float32_t period_ms)
 {
     switch (event)
     {
@@ -630,7 +635,7 @@ void status_leds_handle_riding_danger(event_type_t event)
                              0.0f,   // color change speed
                              0.1f,   // brightness min
                              1.0f,   // brightness max
-                             250.0f, // brightness change speed
+                             period_ms, // brightness change speed
                              0U,
                              &colors.red // RGB color
         );
@@ -640,6 +645,28 @@ void status_leds_handle_riding_danger(event_type_t event)
         break;
     }
 }
+
+void status_leds_handle_riding_danger(event_type_t event)
+{
+    status_leds_handle_solid_red_pulse(event, 250.0f);
+}
+
+#ifdef ENABLE_APP_INTEGRATION
+/**
+ * @brief Handles the disabled (locked) status LEDs based on the given event.
+ *
+ * Slowly breathing solid red bar, same shape as riding-danger but at a much
+ * slower period. The overall brightness floor is forced separately (see
+ * EVENT_HANDLER(status_leds, state_changed)) so this indicator can't be
+ * made invisible by the configured status brightness.
+ *
+ * @param event The event type that triggers the LED status change.
+ */
+void status_leds_handle_disabled(event_type_t event)
+{
+    status_leds_handle_solid_red_pulse(event, DISABLED_BREATH_PERIOD);
+}
+#endif
 
 /**
  * @brief Handles the riding warning status LEDs based on the given event.
@@ -745,6 +772,11 @@ void update_display(event_type_t event)
     case BOARD_MODE_FAULT:
         status_leds_handle_fault(event);
         break;
+#ifdef ENABLE_APP_INTEGRATION
+    case BOARD_MODE_DISABLED:
+        status_leds_handle_disabled(event);
+        break;
+#endif
     case BOARD_MODE_IDLE:
         switch (board_submode_get())
         {
@@ -881,7 +913,30 @@ void status_leds_disable_lights_callback(void)
 
 EVENT_HANDLER(status_leds, state_changed)
 {
-    if (status_leds_settings->enable_status_leds)
+    bool_t leds_enabled = status_leds_settings->enable_status_leds;
+
+#ifdef ENABLE_APP_INTEGRATION
+    if (event == EVENT_BOARD_MODE_CHANGED)
+    {
+        if (data->board_mode.mode == BOARD_MODE_DISABLED)
+        {
+            // Force visible, ignoring the configured brightness, so the
+            // locked indicator can never be made invisible
+            status_leds_hw_set_brightness(1.0f);
+        }
+        else if (data->board_mode.previous_mode == BOARD_MODE_DISABLED)
+        {
+            // Restore the configured brightness on unlock
+            status_leds_hw_set_brightness(status_leds_settings->status_brightness);
+        }
+    }
+
+    // The locked indicator must stay visible even if status LEDs are
+    // otherwise disabled by the user
+    leds_enabled = leds_enabled || (board_mode_get() == BOARD_MODE_DISABLED);
+#endif
+
+    if (leds_enabled)
     {
         update_display(event);
     }

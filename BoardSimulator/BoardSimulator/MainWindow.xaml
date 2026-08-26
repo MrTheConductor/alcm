@@ -438,6 +438,17 @@
                         </TextBlock>
                     </CheckBox>
 
+                    <CheckBox IsChecked="{Binding Locked}"
+                              IsEnabled="{Binding RefloatInstalled}"
+                              Foreground="#CCCCCC"
+                              Margin="0,0,0,10">
+                        <TextBlock>
+                            <Run Text="Locked" FontWeight="SemiBold" />
+                            <LineBreak />
+                            <Run Text="refloat app Lock/Unlock (RunState.STATE_DISABLED)" FontSize="10" Foreground="#999999" />
+                        </TextBlock>
+                    </CheckBox>
+
                     <Grid Margin="0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />

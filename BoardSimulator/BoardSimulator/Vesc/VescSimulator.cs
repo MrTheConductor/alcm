@@ -48,6 +48,10 @@ namespace BoardSimulator.Vesc
         public byte HeadlightIdleBrightnessPercent { get; set; } = 20;
         public byte StatusBrightnessPercent { get; set; } = 50;
 
+        // Whether refloat reports the board as locked (phone-app "Lock"
+        // feature, RunState.STATE_DISABLED) in the poll reply's state byte.
+        public bool Locked { get; set; } = false;
+
         // Event fired when VESC has a response ready
         public event Action<byte[]>? ResponseReady;
 
@@ -183,10 +187,11 @@ namespace BoardSimulator.Vesc
                         enabled: ExternalLedsEnabled,
                         headlightBrightnessPercent: HeadlightBrightnessPercent,
                         headlightIdleBrightnessPercent: HeadlightIdleBrightnessPercent,
-                        statusBrightnessPercent: StatusBrightnessPercent
+                        statusBrightnessPercent: StatusBrightnessPercent,
+                        locked: Locked
                     );
 
-                    System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM LCM poll response: {response.Length} bytes (external_leds={ExternalLedsEnabled}, headlight={HeadlightBrightnessPercent}%, idle={HeadlightIdleBrightnessPercent}%, status={StatusBrightnessPercent}%)");
+                    System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM LCM poll response: {response.Length} bytes (external_leds={ExternalLedsEnabled}, locked={Locked}, headlight={HeadlightBrightnessPercent}%, idle={HeadlightIdleBrightnessPercent}%, status={StatusBrightnessPercent}%)");
 
                     ResponseReady?.Invoke(response);
                 }

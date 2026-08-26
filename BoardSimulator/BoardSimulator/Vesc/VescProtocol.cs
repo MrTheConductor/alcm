@@ -170,18 +170,21 @@ namespace BoardSimulator.Vesc
         /// Generates a COMM_CUSTOM_APP_DATA / COMMAND_LCM_POLL response packet
         /// (command 0x24), matching refloat's lcm_poll_response() format
         /// (refloat/src/lcm.c) that ALCM's process_comm_custom_app_data()
-        /// (vesc_serial.c) parses. ALCM only reads the trailing brightness
-        /// bytes (offsets 12/13/14), so the state/fault/duty/erpm/current/
-        /// voltage fields ahead of them are written as zero. When `enabled`
-        /// is false, only the 2-byte package/command header is sent, mirroring
-        /// refloat's behavior when hardware.leds.mode has External LEDs
-        /// disabled - a valid protocol state, not an error.
+        /// (vesc_serial.c) parses. ALCM reads the state byte (offset 3, low
+        /// nibble - refloat's state_compat() maps STATE_DISABLED to 0xF, see
+        /// refloat/src/state.c) to detect the phone app's "Lock" feature, and
+        /// the trailing brightness bytes (offsets 12/13/14); the fault/duty/
+        /// erpm/current/voltage fields ALCM doesn't use are written as zero.
+        /// When `enabled` is false, only the 2-byte package/command header is
+        /// sent, mirroring refloat's behavior when hardware.leds.mode has
+        /// External LEDs disabled - a valid protocol state, not an error.
         /// </summary>
         public static byte[] GenerateLcmPollResponseMessage(
             bool enabled,
             byte headlightBrightnessPercent,
             byte headlightIdleBrightnessPercent,
-            byte statusBrightnessPercent)
+            byte statusBrightnessPercent,
+            bool locked = false)
         {
             using var ms = new MemoryStream();
             using var writer = new BinaryWriter(ms);
@@ -192,7 +195,7 @@ namespace BoardSimulator.Vesc
 
             if (enabled)
             {
-                writer.Write((byte)0); // state (unused by ALCM)
+                writer.Write((byte)(locked ? 0x0F : 0x00)); // state: low nibble 0xF = STATE_DISABLED
                 writer.Write((byte)0); // fault (unused by ALCM)
                 writer.Write((byte)0); // duty/pitch (unused by ALCM)
                 WriteInt16(writer, 0); // erpm (unused by ALCM)

@@ -112,6 +112,7 @@ class SmokeTestEngine : IDisposable
     public void SetLcmHeadlightBrightnessPercent(byte pct)     => _vesc.HeadlightBrightnessPercent = pct;
     public void SetLcmHeadlightIdleBrightnessPercent(byte pct) => _vesc.HeadlightIdleBrightnessPercent = pct;
     public void SetLcmStatusBrightnessPercent(byte pct)        => _vesc.StatusBrightnessPercent = pct;
+    public void SetLocked(bool locked)                          => _vesc.Locked = locked;
 
     /// Advance simulation until <paramref name="predicate"/> matches an event or
     /// <paramref name="timeoutMs"/> of simulated time elapses.
