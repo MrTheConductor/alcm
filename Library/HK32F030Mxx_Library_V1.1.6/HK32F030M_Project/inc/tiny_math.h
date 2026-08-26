@@ -71,9 +71,18 @@ static inline uint8_t qsub8(uint8_t a, uint8_t b)
     return a - b;
 }
 
+/**
+ * @brief Scales i by scale/255 (0-255 = 0.0-1.0).
+ *
+ * Uses the standard scale+1 rounding trick (as in FastLED) rather than a
+ * plain (i*scale)>>8: with a plain floor, scale8(255,255) is 254, not 255,
+ * so chaining several scale8() calls (e.g. multiple brightness factors)
+ * never quite reaches full scale even when every factor is "1.0". The +1
+ * makes scale=255 an exact identity (scale8(i,255)==i for all i).
+ */
 static inline uint8_t scale8(uint8_t i, uint8_t scale)
 {
-    return ((uint16_t)i * (uint16_t)scale) >> 8;
+    return ((uint16_t)i * ((uint16_t)scale + 1U)) >> 8;
 }
 
 /**

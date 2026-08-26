@@ -167,6 +167,7 @@ lcm_status_t function_generator_increment_phase(function_generator_t *fg, const 
 lcm_status_t calculate_sample(const uint16_t phase, const function_generator_t *fg, fixed16_t *sample)
 {
     int16_t normalized_sample = 0;
+    int32_t fixed16_wide;
 
     if (fg == NULL || sample == NULL)
     {
@@ -200,15 +201,20 @@ lcm_status_t calculate_sample(const uint16_t phase, const function_generator_t *
         return LCM_ERROR_INVALID_PARAM;
     }
 
+    // Widen Q15 to Q16.16 (shift left by 1) before inverting/multiplying -
+    // normalized_sample's minimum (INT16_MIN) has no positive int16_t
+    // counterpart, so negating it as int16_t would overflow. The widened
+    // range has ample headroom (-65536 negates cleanly to 65536).
+    fixed16_wide = (int32_t)normalized_sample << 1;
+
     // Apply inversion if requested
     if (fg->inverse)
     {
-        normalized_sample = (int16_t)(-normalized_sample);
+        fixed16_wide = -fixed16_wide;
     }
 
-    // Map the normalized Q15 sample ([-1,1]) to [min_value, max_value]:
-    // widen Q15 to Q16.16 (shift left by 1) before the fixed multiply.
-    *sample = fixed_mul16(fg->scale, (int32_t)normalized_sample << 1) + fg->offset;
+    // Map the normalized sample ([-1,1]) to [min_value, max_value]
+    *sample = fixed_mul16(fg->scale, fixed16_wide) + fg->offset;
 
     // Special case for end of non-repeating wave
     if (phase == 0xFFFFU && fg->repeat == false)

@@ -55,7 +55,8 @@ static void fill_test(void **state)
     expect_any(set_timer, repeat);
 
     fill_animation_setup(buffer, COLOR_MODE_HSV_INCREASE, BRIGHTNESS_MODE_STATIC, FILL_MODE_SOLID,
-                         0, NUM_LEDS - 1, 0.0f, 360.0f, 1000, 1.0f, 1.0f, 0, 0, NULL);
+                         0, NUM_LEDS - 1, FIXED16(0.0), FIXED16(360.0), 1000, FIXED16(1.0),
+                         FIXED16(1.0), 0, 0, NULL);
 
     // Run a few ticks of the animation
     for (int i = 0; i < 100; i++)

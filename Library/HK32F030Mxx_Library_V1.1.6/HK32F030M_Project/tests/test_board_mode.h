@@ -71,6 +71,8 @@ int board_mode_setup(void **state)
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_IMU_ROLL_CHANGED);
     expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_VESC_LOCKED_CHANGED);
+    expect_any(subscribe_event, callback);
 
     board_mode_init();
 
@@ -288,7 +290,7 @@ void step_on_board(void)
                  (uintmax_t)&expected_state);
 
     // The code will check the vesc_serial parameters
-    will_return(vesc_serial_get_duty_cycle, 0.0f);
+    will_return(vesc_serial_get_duty_cycle, 0);
     will_return(vesc_serial_get_rpm, 0);
 
     // The code will also disable the idle timer
@@ -403,20 +405,20 @@ void test_board_mode_duty_cycle(void **state)
     board_mode_to_idle();
 
     // Duty cyle shouldn't do anything in idle mode
-    duty_cycle_event_data.duty_cycle = 0.5f;
+    duty_cycle_event_data.duty_cycle = 5; // 0.5%, tenths of a percent
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 
     // Step on board
     step_on_board();
 
     // Low duty cycle shouldn't do anything
-    will_return(vesc_serial_get_duty_cycle, 10.0f);
+    will_return(vesc_serial_get_duty_cycle, 100); // 10.0%
     will_return(vesc_serial_get_rpm, 8);
 
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 
     // High duty cycle should trigger warning
-    will_return(vesc_serial_get_duty_cycle, 85.0f);
+    will_return(vesc_serial_get_duty_cycle, 850); // 85.0%
     will_return(vesc_serial_get_rpm, 8);
 
     // Riding mode will disable the idle timer
@@ -432,7 +434,7 @@ void test_board_mode_duty_cycle(void **state)
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 
     // Higher duty cycle should trigger danger
-    will_return(vesc_serial_get_duty_cycle, 95.0f);
+    will_return(vesc_serial_get_duty_cycle, 950); // 95.0%
     will_return(vesc_serial_get_rpm, 8);
 
     // Riding mode will disable the idle timer
@@ -448,7 +450,7 @@ void test_board_mode_duty_cycle(void **state)
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 
     // Slowing down should go back to warning
-    will_return(vesc_serial_get_duty_cycle, 84.0f);
+    will_return(vesc_serial_get_duty_cycle, 840); // 84.0%
     will_return(vesc_serial_get_rpm, 8);
 
     // Riding mode will disable the idle timer
@@ -484,7 +486,7 @@ void move_board_forward(void)
                  (uintmax_t)&expected_state);
 
     // The code will check the vesc_serial parameters
-    will_return(vesc_serial_get_duty_cycle, 0.0f);
+    will_return(vesc_serial_get_duty_cycle, 0);
     will_return(vesc_serial_get_rpm, 100U);
 
     // The code will also disable the idle timer
@@ -540,7 +542,7 @@ void test_board_mode_rpm(void **state)
 
     // RPM updates shouldn't do change any states while moving
     rpm_event_data.rpm = -150;
-    will_return(vesc_serial_get_duty_cycle, 0.0f);
+    will_return(vesc_serial_get_duty_cycle, 0);
     will_return(vesc_serial_get_rpm, -150);
     event_queue_call_mocked_callback(EVENT_RPM_CHANGED, &rpm_event_data);
 
@@ -552,7 +554,7 @@ void test_board_mode_rpm(void **state)
                  (uintmax_t)&expected_state);
 
     // The code will check the vesc_serial parameters
-    will_return(vesc_serial_get_duty_cycle, 50.0f);
+    will_return(vesc_serial_get_duty_cycle, 500); // 50.0%
     will_return(vesc_serial_get_rpm, SLOW_RPM_THRESHOLD + 100);
 
     // Setting RPM checks the idle timer

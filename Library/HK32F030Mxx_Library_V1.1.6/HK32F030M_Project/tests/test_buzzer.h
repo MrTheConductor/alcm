@@ -60,6 +60,12 @@ int buzzer_setup(void **state)
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_BOARD_MODE_CHANGED);
     expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_BUTTON_DOWN);
+    expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_BUTTON_UP);
+    expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_FOOTPAD_CHANGED);
+    expect_any(subscribe_event, callback);
 
     // Expect the buzzer to be turned off
     expect_function_call(buzzer_off);

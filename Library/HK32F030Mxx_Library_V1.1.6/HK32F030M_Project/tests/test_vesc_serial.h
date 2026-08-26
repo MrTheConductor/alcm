@@ -335,10 +335,11 @@ void test_vesc_serial_app_integration(void **state)
     settings_t *settings = settings_get();
     event_data_t rx_event_data = {0};
 
-    // Sentinel values, distinct from any brightness percentage used below,
-    // so we can tell "untouched" apart from "applied".
-    settings->headlight_brightness = -1.0f;
-    settings->status_brightness = -1.0f;
+    // Sentinel value, unreachable by any brightness percentage used below
+    // (50/70/60% convert to 127/178/153), so we can tell "untouched" apart
+    // from "applied".
+    settings->headlight_brightness = 255U;
+    settings->status_brightness = 255U;
 
     // Packet 1: baseline poll response (headlight=50%, status=30%). This is
     // also the first valid packet, so it raises EVENT_VESC_ALIVE. Since this
@@ -362,8 +363,8 @@ void test_vesc_serial_app_integration(void **state)
         event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
     }
 
-    assert_float_equal(-1.0f, settings->headlight_brightness, 0.0f);
-    assert_float_equal(-1.0f, settings->status_brightness, 0.0f);
+    assert_int_equal(255U, settings->headlight_brightness);
+    assert_int_equal(255U, settings->status_brightness);
 
     // Packet 2: identical values repeated - matches the baseline, so nothing
     // should be applied and no events should fire.
@@ -383,8 +384,8 @@ void test_vesc_serial_app_integration(void **state)
         event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
     }
 
-    assert_float_equal(-1.0f, settings->headlight_brightness, 0.0f);
-    assert_float_equal(-1.0f, settings->status_brightness, 0.0f);
+    assert_int_equal(255U, settings->headlight_brightness);
+    assert_int_equal(255U, settings->status_brightness);
 
     // Packet 3: headlight brightness changes to 70% (status unchanged) -
     // should apply and fire EVENT_COMMAND_SETTINGS_CHANGED for the
@@ -410,8 +411,8 @@ void test_vesc_serial_app_integration(void **state)
         event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
     }
 
-    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
-    assert_float_equal(-1.0f, settings->status_brightness, 0.0f);
+    assert_int_equal(178, settings->headlight_brightness); // 70% -> (70*255)/100
+    assert_int_equal(255U, settings->status_brightness);
 
     // Packet 4: status bar brightness changes to 60% (headlight unchanged
     // from its new 70% baseline) - should apply and fire
@@ -437,8 +438,8 @@ void test_vesc_serial_app_integration(void **state)
         event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
     }
 
-    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
-    assert_float_equal(0.60f, settings->status_brightness, 0.001f);
+    assert_int_equal(178, settings->headlight_brightness); // 70% -> (70*255)/100
+    assert_int_equal(153, settings->status_brightness);    // 60% -> (60*255)/100
 
     // Packet 5: too short to contain the status brightness byte - should be
     // ignored entirely (no crash, no events, no change to either setting).
@@ -458,8 +459,8 @@ void test_vesc_serial_app_integration(void **state)
         event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
     }
 
-    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
-    assert_float_equal(0.60f, settings->status_brightness, 0.001f);
+    assert_int_equal(178, settings->headlight_brightness); // 70% -> (70*255)/100
+    assert_int_equal(153, settings->status_brightness);    // 60% -> (60*255)/100
 
     // Packet 6: wrong refloat package id (not 101) - should be ignored
     // entirely (no crash, no events, no change to either setting).
@@ -479,8 +480,8 @@ void test_vesc_serial_app_integration(void **state)
         event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
     }
 
-    assert_float_equal(0.70f, settings->headlight_brightness, 0.001f);
-    assert_float_equal(0.60f, settings->status_brightness, 0.001f);
+    assert_int_equal(178, settings->headlight_brightness); // 70% -> (70*255)/100
+    assert_int_equal(153, settings->status_brightness);    // 60% -> (60*255)/100
 
     assert_true(ring_buffer_is_empty(rx_buffer));
 }

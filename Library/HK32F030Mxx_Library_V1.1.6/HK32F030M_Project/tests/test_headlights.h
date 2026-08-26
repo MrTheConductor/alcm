@@ -48,7 +48,7 @@ int headlights_setup(void **state)
     settings_init();
     settings_t *settings = settings_get();
     settings->enable_headlights = true;
-    settings->headlight_brightness = 1.0f;
+    settings->headlight_brightness = 255U;
 
     expect_function_call(headlights_hw_init);
     expect_value(headlights_hw_set_direction, direction, HEADLIGHTS_DIRECTION_NONE);
