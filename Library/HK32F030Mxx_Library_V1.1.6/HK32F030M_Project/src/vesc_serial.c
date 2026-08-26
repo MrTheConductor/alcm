@@ -26,6 +26,7 @@
 #include "lcm_types.h"
 #include "interrupts.h"
 #include "tiny_math.h"
+#include "function_generator.h"
 #ifdef ENABLE_APP_INTEGRATION
 #include "settings.h"
 #include "command_processor.h"
@@ -75,25 +76,25 @@
 #define END_BYTE 0x03
 #define MAX_PACKET_LENGTH 32
 #define MAX_OUTSTANDING_PACKETS 5
-#define SIGNIFICANT_CHANGE(x, y) (fabsf((x) - (y)) > 0.02f)
-#define RADIANS_TO_DEGREES(radians) ((radians) * (180.0f / M_PI))
+// Millidegrees - 0.02 degrees was the original float threshold.
+#define SIGNIFICANT_CHANGE(x, y) ((((x) > (y)) ? ((x) - (y)) : ((y) - (x))) > 20)
 
 typedef struct
 {
-    float32_t duty_cycle;
+    int16_t duty_cycle;  // Tenths of a percent
     int32_t rpm;
 #if defined(ENABLE_VOLTAGE_MONITORING)
-    float32_t input_voltage;
+    int16_t input_voltage; // Tenths of a volt
 #endif
-    float32_t battery_level;
+    int16_t battery_level; // Tenths of a percent
     uint8_t fault;
 } comm_get_values_setup_selective_t;
 
 #ifdef ENABLE_IMU_EVENTS
 typedef struct
 {
-    float32_t pitch;
-    float32_t roll;
+    int32_t pitch; // Millidegrees
+    int32_t roll;  // Millidegrees
 } comm_get_imu_data_t;
 #endif
 
@@ -259,42 +260,60 @@ uint32_t buffer_get_uint32(const uint8_t *buffer)
     return (buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3];
 }
 
-/**
- * @brief Extracts a 16-bit float from a buffer
- *
- * Extracts a 16-bit signed integer from the buffer and scales it to a float32_t.
- *
- * @param buffer The buffer to read from
- * @param scale The scale of the float (i.e. 100.0 for a 1/100th scaling)
- * @return The scaled float
- */
-float16_t buffer_get_float16(const uint8_t *buffer, float32_t scale)
-{
-    return (float16_t)buffer_get_int16(buffer) / scale;
-}
-
-/**
- * @brief Extracts a 32-bit float from a buffer
- *
- * Extracts a 32-bit signed integer from the buffer and scales it to a float32_t.
- *
- * @param buffer The buffer to read from
- * @param scale The scale of the float (i.e. 100.0 for a 1/100th scaling)
- * @return The scaled float
- */
-float16_t buffer_get_float32(const uint8_t *buffer, float32_t scale)
-{
-    return (float32_t)buffer_get_int32(buffer) / scale;
-}
-
-float32_t buffer_get_float32_auto(const uint8_t *buffer)
-{
-    union { uint32_t i; float f; } u;
-    u.i = buffer_get_uint32(buffer);
-    return (float32_t)u.f;
-}
-
 #ifdef ENABLE_IMU_EVENTS
+// 180000/pi, as Q16.16 - converts Q16.16 radians directly to millidegrees
+// via a single fixed_mul16().
+#define RADIANS_TO_MILLIDEGREES_SCALE FIXED16(180000.0 / 3.14159265358979323846)
+
+/**
+ * @brief Decodes a raw wire IEEE754 float (radians) directly into
+ * millidegrees, via manual bit unpacking - no soft-float ops.
+ *
+ * This is the one place VESC data arrives as a genuine IEEE754 bit pattern
+ * (everywhere else uses buffer_get_int16/32, which are already integers).
+ * Denormals/true-zero (raw exponent field 0) are treated as 0 - negligible
+ * for a physically meaningful pitch/roll reading. Values whose magnitude
+ * would overflow the Q16.16 intermediate are clamped rather than wrapped.
+ *
+ * @param bits Raw 32-bit wire value (big-endian decoded via buffer_get_uint32).
+ * @return The angle in millidegrees.
+ */
+static int32_t buffer_get_imu_millidegrees(const uint8_t *buffer)
+{
+    uint32_t bits = buffer_get_uint32(buffer);
+    bool_t negative = (bits & 0x80000000U) != 0U;
+    int32_t exponent = (int32_t)((bits >> 23) & 0xFFU);
+    uint32_t mantissa;
+    int32_t shift;
+    int64_t radians_fixed16;
+    int64_t result;
+
+    if (exponent == 0)
+    {
+        return 0;
+    }
+
+    mantissa = (bits & 0x007FFFFFU) | 0x00800000U; // restore implicit leading 1
+    shift = (exponent - 127) - 7; // scale 23-bit mantissa fraction to Q16.16
+
+    if (shift >= 0)
+    {
+        radians_fixed16 = (shift > 30) ? INT32_MAX : ((int64_t)mantissa << shift);
+    }
+    else
+    {
+        radians_fixed16 = (shift < -30) ? 0 : ((int64_t)mantissa >> (-shift));
+    }
+    if (radians_fixed16 > INT32_MAX)
+    {
+        radians_fixed16 = INT32_MAX;
+    }
+
+    result = ((int64_t)(int32_t)radians_fixed16 * RADIANS_TO_MILLIDEGREES_SCALE) >> 16;
+
+    return (int32_t)(negative ? -result : result);
+}
+
 /**
  * @brief Processes a COMM_GET_IMU_DATA packet
  *
@@ -328,27 +347,31 @@ void process_comm_get_imu_data(const uint8_t *payload, uint8_t packet_length)
         return;
     }
 
-    // Copy the payload into the temporary comm_get_imu_data struct
-    imu_data.roll = buffer_get_float32_auto(&payload[3]);
-    imu_data.pitch = buffer_get_float32_auto(&payload[7]);
+    // Copy the payload into the temporary comm_get_imu_data struct - both
+    // already in millidegrees, so cache and fresh value are always
+    // comparable (the previous float version cached the fresh sample's
+    // degrees value but compared it against the next sample's radians
+    // value - a latent unit mismatch this rewrite avoids for free).
+    imu_data.roll = buffer_get_imu_millidegrees(&payload[3]);
+    imu_data.pitch = buffer_get_imu_millidegrees(&payload[7]);
 
     // For each field, check if the value has changed
     if (SIGNIFICANT_CHANGE(imu_data.pitch, comm_get_imu_data.pitch))
     {
         event_data_t data = {0};
-        data.imu_pitch = RADIANS_TO_DEGREES(imu_data.pitch);
+        data.imu_pitch = imu_data.pitch;
         event_queue_push(EVENT_IMU_PITCH_CHANGED, &data);
 
-        comm_get_imu_data.pitch = data.imu_pitch;
+        comm_get_imu_data.pitch = imu_data.pitch;
     }
 
     if (SIGNIFICANT_CHANGE(imu_data.roll, comm_get_imu_data.roll))
     {
         event_data_t data = {0};
-        data.imu_roll = RADIANS_TO_DEGREES(imu_data.roll);
+        data.imu_roll = imu_data.roll;
         event_queue_push(EVENT_IMU_ROLL_CHANGED, &data);
 
-        comm_get_imu_data.roll = data.imu_roll;
+        comm_get_imu_data.roll = imu_data.roll;
     }
 }
 #endif
@@ -387,25 +410,28 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     }
 
     // Copy the payload into the temporary comm_get_values_setup_selective
-    // struct
-    values.duty_cycle = buffer_get_float16(&payload[5], 10.0f);
+    // struct. The wire value is already tenths of a percent (an int16,
+    // previously divided by 10.0f into a float and multiplied back out
+    // downstream) - decode it directly.
+    values.duty_cycle = buffer_get_int16(&payload[5]);
 
-    // Coerce the duty cycle to a valid range
-    CLAMP(values.duty_cycle, -100.0f, 100.0f);
+    // Coerce the duty cycle to a valid range (previously a no-op bug: CLAMP
+    // used as a bare statement discarded its result instead of assigning it).
+    values.duty_cycle = CLAMP(values.duty_cycle, -1000, 1000);
 
-    // RPM is an integer quantity in the VESC protocol (scale 1.0), so the
-    // float returned by buffer_get_float32 is truncated to int32_t explicitly
-    // to avoid an implicit float->int conversion warning (C4244).
-    values.rpm = (int32_t)buffer_get_float32(&payload[7], 1.0f);
+    // RPM is a genuine integer quantity in the VESC protocol (scale 1.0) -
+    // decode it directly instead of round-tripping through
+    // buffer_get_float32(), which only ever divided by 1.0f.
+    values.rpm = buffer_get_int32(&payload[7]);
 
 #if defined(ENABLE_VOLTAGE_MONITORING)
-    values.input_voltage = buffer_get_float16(&payload[11], 10.0f);
+    values.input_voltage = buffer_get_int16(&payload[11]);
 #endif
-    values.battery_level = buffer_get_float16(&payload[13], 10.0f);
+    values.battery_level = buffer_get_int16(&payload[13]);
 
     // The VESC can return battery levels outside of the 0-100% range,
     // so we need to coerce it to a valid range.
-    CLAMP(values.battery_level, 0.0f, 100.0f);
+    values.battery_level = CLAMP(values.battery_level, 0, 1000);
 
     values.fault = payload[15];
 
@@ -475,10 +501,10 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
  *
  * @param baseline Last remote value seen for this channel (persists across calls)
  * @param new_pct New value from the wire, 0-100 (clamped defensively)
- * @param setting Settings field to update (0.0-1.0 fraction)
+ * @param setting Settings field to update (0-255 = 0.0-1.0 fraction)
  * @param context Context to report on EVENT_COMMAND_SETTINGS_CHANGED
  */
-static void apply_lcm_brightness(uint8_t *baseline, uint8_t new_pct, float32_t *setting,
+static void apply_lcm_brightness(uint8_t *baseline, uint8_t new_pct, uint8_t *setting,
                                   command_processor_context_t context)
 {
     if (new_pct > 100U)
@@ -495,7 +521,9 @@ static void apply_lcm_brightness(uint8_t *baseline, uint8_t new_pct, float32_t *
         {
             event_data_t data = {0};
 
-            *setting = (float32_t)new_pct / 100.0f;
+            // Divisor is a compile-time constant (100), so this is a free
+            // multiply-by-reciprocal, not a runtime division call.
+            *setting = (uint8_t)(((uint16_t)new_pct * 255U) / 100U);
             data.context = context;
             event_queue_push(EVENT_COMMAND_SETTINGS_CHANGED, &data);
         }
@@ -799,7 +827,7 @@ TIMER_CALLBACK(vesc_serial, tx)
  *
  * @return The current duty cycle of the VESC
  */
-float32_t vesc_serial_get_duty_cycle(void)
+int16_t vesc_serial_get_duty_cycle(void)
 {
     return comm_get_values_setup_selective.duty_cycle;
 }
@@ -820,7 +848,7 @@ int32_t vesc_serial_get_rpm(void)
  *
  * @return The current input voltage of the VESC
  */
-float32_t vesc_serial_get_input_voltage(void)
+int16_t vesc_serial_get_input_voltage(void)
 {
     return comm_get_values_setup_selective.input_voltage;
 }
@@ -831,7 +859,7 @@ float32_t vesc_serial_get_input_voltage(void)
  *
  * @return The current battery level of the VESC
  */
-float32_t vesc_serial_get_battery_level(void)
+int16_t vesc_serial_get_battery_level(void)
 {
     return comm_get_values_setup_selective.battery_level;
 }
@@ -852,7 +880,7 @@ uint8_t vesc_serial_get_fault(void)
  *
  * @return The current pitch of the VESC IMU
  */
-float32_t vesc_serial_get_imu_pitch(void)
+int32_t vesc_serial_get_imu_pitch(void)
 {
     return comm_get_imu_data.pitch;
 }
@@ -862,7 +890,7 @@ float32_t vesc_serial_get_imu_pitch(void)
  *
  * @return The current roll of the VESC IMU
  */
-float32_t vesc_serial_get_imu_roll(void)
+int32_t vesc_serial_get_imu_roll(void)
 {
     return comm_get_imu_data.roll;
 }

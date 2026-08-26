@@ -28,6 +28,7 @@
 #include "vesc_serial.h"
 #include "lcm_types.h"
 #include "config.h"
+#include "tiny_math.h"
 
 #define HEADLIGHTS_TIMER_DELAY 20U // How frequent to update the headlights in ms
 
@@ -64,13 +65,13 @@ static uint32_t headlights_enable_animation_timer_id = INVALID_TIMER_ID;
 static uint32_t headlights_direction_animation_timer_id = INVALID_TIMER_ID;
 static hysteresis_t headlights_rpm_hys;
 
-// Control factors
-float enable_control = 1.0f; // Enable control factor
+// Control factors - scale8()-domain fractions, 0-255 = 0.0-1.0
+uint8_t enable_control = 255U; // Enable control factor
 #ifdef ENABLE_IMU_EVENTS
-float pitch_control = 1.0f; // Pitch control factor
+uint8_t pitch_control = 255U; // Pitch control factor
 #endif
-float mode_control = 1.0f;  // Mode control factor
-float direction_control = 1.0f; // Direction control factor
+uint8_t mode_control = 255U;  // Mode control factor
+uint8_t direction_control = 255U; // Direction control factor
 
 // Event handlers
 EVENT_HANDLER(headlights, state_change);
@@ -101,11 +102,11 @@ lcm_status_t headlights_init(void)
         // Initialize enable control based on settings
         if (headlights_settings->enable_headlights)
         {
-            enable_control = 1.0f;
+            enable_control = 255U;
         }
         else
         {
-            enable_control = 0.0f;
+            enable_control = 0U;
         }
 
         // Initialize the hardware
@@ -140,22 +141,24 @@ lcm_status_t headlights_init(void)
 void headlights_set_hw_brightness()
 {
     uint16_t hw_brightness = 0U;
-    hw_brightness = (uint16_t)
-        (headlights_settings->headlight_brightness *
-         enable_control *
-         pitch_control *
-         mode_control *
-         direction_control *
-         HEADLIGHTS_HW_MAX_BRIGHTNESS
-        );
-    
+    uint8_t combined = scale8(headlights_settings->headlight_brightness, enable_control);
+    combined = scale8(combined, pitch_control);
+    combined = scale8(combined, mode_control);
+    combined = scale8(combined, direction_control);
+
+    // Divisor is a compile-time constant (255), so this is a free
+    // multiply-by-reciprocal, not a runtime division call.
+    hw_brightness = (uint16_t)(((uint32_t)combined * HEADLIGHTS_HW_MAX_BRIGHTNESS) / 255U);
+
     headlights_hw_set_brightness(hw_brightness);
 }
 
 TIMER_CALLBACK(headlights, mode_animation)
 {
     // Get next sample from function generator
-    lcm_status_t status = function_generator_next_sample(&headlights_mode_fg, &mode_control);
+    fixed16_t sample = 0;
+    lcm_status_t status = function_generator_next_sample(&headlights_mode_fg, &sample);
+    mode_control = fixed16_to_frac8(sample);
     headlights_set_hw_brightness();
 
     // If function generator is done, cancel timer
@@ -169,7 +172,9 @@ TIMER_CALLBACK(headlights, mode_animation)
 TIMER_CALLBACK(headlights, enable_animation)
 {
     // Get next sample from function generator
-    lcm_status_t status = function_generator_next_sample(&headlights_enable_fg, &enable_control);
+    fixed16_t sample = 0;
+    lcm_status_t status = function_generator_next_sample(&headlights_enable_fg, &sample);
+    enable_control = fixed16_to_frac8(sample);
     headlights_set_hw_brightness();
 
     // If function generator is done, cancel timer
@@ -183,7 +188,9 @@ TIMER_CALLBACK(headlights, enable_animation)
 TIMER_CALLBACK(headlights, direction_animation)
 {
     // Get next sample from function generator
-    lcm_status_t status = function_generator_next_sample(&headlights_direction_fg, &direction_control);
+    fixed16_t sample = 0;
+    lcm_status_t status = function_generator_next_sample(&headlights_direction_fg, &sample);
+    direction_control = fixed16_to_frac8(sample);
     headlights_set_hw_brightness();
 
     // If function generator is done, cancel timer
@@ -192,8 +199,8 @@ TIMER_CALLBACK(headlights, direction_animation)
         cancel_timer(headlights_direction_animation_timer_id);
         headlights_direction_animation_timer_id = INVALID_TIMER_ID;
 
-        // If the direction_control is 0.0f, we can switch directions and start fading back up
-        if (direction_control <= 0.1f)
+        // If the direction_control is ~0, we can switch directions and start fading back up
+        if (direction_control <= 26U) // ~0.1 * 255
         {
             if (headlights_rpm_hys.state == STATE_SET)
             {
@@ -211,8 +218,8 @@ TIMER_CALLBACK(headlights, direction_animation)
                                     FUNCTION_GENERATOR_SAWTOOTH,
                                     FADE_PERIOD/2,
                                     HEADLIGHTS_TIMER_DELAY,
-                                    0.0f,
-                                    1.0f,
+                                    FIXED16(0.0),
+                                    FIXED16(1.0),
                                     FG_FLAG_NONE,
                                     0U);
             headlights_direction_animation_timer_id =
@@ -240,8 +247,8 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 FUNCTION_GENERATOR_SAWTOOTH,
                                 FADE_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
-                                HEADLIGHTS_IDLE_BRIGHTNESS,
-                                1.0f,
+                                FIXED16(HEADLIGHTS_IDLE_BRIGHTNESS),
+                                FIXED16(1.0),
                                 FG_FLAG_INVERT,
                                 0U);
         break;
@@ -252,8 +259,8 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 FUNCTION_GENERATOR_SINE,
                                 SLOW_BREATH_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
-                                0.05f,
-                                HEADLIGHTS_IDLE_BRIGHTNESS,
+                                FIXED16(0.05),
+                                FIXED16(HEADLIGHTS_IDLE_BRIGHTNESS),
                                 FG_FLAG_REPEAT,
                                 0U);
         break;
@@ -265,8 +272,8 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 FUNCTION_GENERATOR_SINE,
                                 FAST_BREATH_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
-                                0.0f,
-                                1.0f,
+                                FIXED16(0.0),
+                                FIXED16(1.0),
                                 FG_FLAG_REPEAT,
                                 0U);
         break;
@@ -277,8 +284,8 @@ void headlights_set_mode_animation(headlights_mode_animation_t animation)
                                 FUNCTION_GENERATOR_SQUARE,
                                 FADE_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
-                                0.0f,
-                                1.0f,
+                                FIXED16(0.0),
+                                FIXED16(1.0),
                                 FG_FLAG_REPEAT,
                                 0U);
         break;
@@ -312,8 +319,8 @@ void headlights_set_enable_animation(headlights_enable_animation_t animation)
                                 FUNCTION_GENERATOR_SAWTOOTH,
                                 FADE_PERIOD,
                                 HEADLIGHTS_TIMER_DELAY,
-                                0.0f,
-                                1.0f,
+                                FIXED16(0.0),
+                                FIXED16(1.0),
                                 FG_FLAG_INVERT,
                                 0U);
 
@@ -332,7 +339,7 @@ void headlights_set_enable_animation(headlights_enable_animation_t animation)
 void headlights_rpm_changed(void)
 {
     // ERPM is used to determine direction
-    hys_state_t state = apply_hysteresis(&headlights_rpm_hys, (float)vesc_serial_get_rpm());
+    hys_state_t state = apply_hysteresis(&headlights_rpm_hys, vesc_serial_get_rpm());
     headlights_direction_t direction = headlights_hw_get_direction();
     if ((state == STATE_SET && direction != HEADLIGHTS_DIRECTION_FORWARD) ||
         (state == STATE_RESET && direction != HEADLIGHTS_DIRECTION_REVERSE))
@@ -342,11 +349,11 @@ void headlights_rpm_changed(void)
                                 FUNCTION_GENERATOR_SAWTOOTH,
                                 FADE_PERIOD/2,
                                 HEADLIGHTS_TIMER_DELAY,
-                                0.0f,
-                                1.0f,
+                                FIXED16(0.0),
+                                FIXED16(1.0),
                                 FG_FLAG_INVERT,
                                 0U);
-        function_generator_initial_sample(&headlights_direction_fg, direction_control);
+        function_generator_initial_sample(&headlights_direction_fg, frac8_to_fixed16(direction_control));
         headlights_direction_animation_timer_id =
             set_timer(HEADLIGHTS_TIMER_DELAY, TIMER_CALLBACK_NAME(headlights, direction_animation), true);
     }
@@ -364,7 +371,7 @@ EVENT_HANDLER(headlights, state_change)
             headlights_hw_set_direction(HEADLIGHTS_DIRECTION_FORWARD);
             // Fall through intentional
         case BOARD_MODE_RIDING:
-            mode_control = 1.0f;
+            mode_control = 255U;
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
             break;
         case BOARD_MODE_DISABLED:
@@ -372,7 +379,7 @@ EVENT_HANDLER(headlights, state_change)
         case BOARD_MODE_CHARGING:
             // Fall through intentional
         case BOARD_MODE_OFF:
-            mode_control = 0.0f;
+            mode_control = 0U;
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
             break;
         case BOARD_MODE_FAULT:
@@ -392,7 +399,7 @@ EVENT_HANDLER(headlights, state_change)
             case BOARD_SUBMODE_IDLE_CONFIG:
                 // Fall through intentional
             case BOARD_SUBMODE_IDLE_ACTIVE:
-                mode_control = 1.0f;
+                mode_control = 255U;
                 headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
                 break;
             case BOARD_SUBMODE_IDLE_DEFAULT:
@@ -426,7 +433,7 @@ EVENT_HANDLER(headlights, state_change)
     case EVENT_COMMAND_TOGGLE_LIGHTS:
         if (headlights_settings->enable_headlights)
         {
-            enable_control = 1.0f;
+            enable_control = 255U;
             headlights_set_enable_animation(HEADLIGHTS_ENABLE_ANIMATION_NONE);
         }
         else
@@ -450,9 +457,9 @@ EVENT_HANDLER(headlights, state_change)
         // Update the pitch control factor based on the IMU pitch
         {
             if (data->imu_pitch >= 60.0f || data->imu_pitch <= -60.0f) {
-                pitch_control = 0.0f;
+                pitch_control = 0U;
             } else {
-                pitch_control = 1.0f;
+                pitch_control = 255U;
             }
         }
         break;

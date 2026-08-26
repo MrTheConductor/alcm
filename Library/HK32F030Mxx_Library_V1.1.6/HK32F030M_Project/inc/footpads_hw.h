@@ -24,6 +24,8 @@
 #ifndef FOOTPADS_HW_H
 #define FOOTPADS_HW_H
 
+#include <stdint.h>
+
 /**
  * @brief Initializes the hardware for the footpads.
  *
@@ -34,24 +36,18 @@
 void footpads_hw_init(void);
 
 /**
- * @brief Retrieves the value from the left footpad hardware sensor.
+ * @brief Retrieves the raw ADC count from the left footpad hardware sensor.
  *
- * This function reads and returns the current value from the left footpad
- * hardware sensor. The value is represented as a floating-point number.
- *
- * @return The current value from the left footpad hardware sensor.
+ * @return The current raw ADC reading from the left footpad hardware sensor.
  */
-float footpads_hw_get_left(void);
+uint16_t footpads_hw_get_left(void);
 
 /**
- * @brief Retrieves the value from the right footpad sensor.
+ * @brief Retrieves the raw ADC count from the right footpad sensor.
  *
- * This function reads and returns the current value from the right footpad
- * sensor. The value is represented as a floating-point number.
- *
- * @return float The current value from the right footpad sensor.
+ * @return The current raw ADC reading from the right footpad sensor.
  */
-float footpads_hw_get_right(void);
+uint16_t footpads_hw_get_right(void);
 
 /**
  * @brief Calibrates the footpads hardware.

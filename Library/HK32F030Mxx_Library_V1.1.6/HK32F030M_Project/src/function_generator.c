@@ -17,30 +17,54 @@
  * with ALCM. If not, see <https://www.gnu.org/licenses/>.
  */
 #include <stddef.h>
-#include <math.h>
 #include "tiny_math.h"
 #include "function_generator.h"
 
-static const float TWO_PI = 2.0f * M_PI;
+/**
+ * @brief Quarter-wave sine lookup table.
+ *
+ * sine_lut[i] = round(sin(i * 90/64 degrees) * 32767), i.e. Q15 amplitude
+ * for angles 0..89.99 degrees. Combined with quadrant mirroring/negation in
+ * tiny_sin_bam(), this reconstructs a full sine cycle from one quarter,
+ * trading a little angular resolution (~1.4 degrees/step) for a table 1/4
+ * the size of storing all 256 steps - imperceptible for LED "breathing"
+ * animations running over multi-second periods.
+ */
+static const int16_t sine_lut[64] = {
+    0,     804,   1608,  2410,  3212,  4011,  4808,  5602,
+    6393,  7179,  7962,  8739,  9512,  10278, 11039, 11793,
+    12539, 13279, 14010, 14732, 15446, 16151, 16846, 17530,
+    18204, 18868, 19519, 20159, 20787, 21403, 22005, 22594,
+    23170, 23731, 24279, 24811, 25329, 25832, 26319, 26790,
+    27245, 27683, 28105, 28510, 28898, 29268, 29621, 29956,
+    30273, 30571, 30852, 31113, 31356, 31580, 31785, 31971,
+    32137, 32285, 32412, 32521, 32609, 32678, 32728, 32757,
+};
 
 /**
- * @brief Initializes a function generator
+ * @brief Sine of a BAM angle (0-65535 = one full turn), as Q15.
  *
- * This function initializes a function generator structure with the specified
- * waveform type, period, sample rate, and value range. The function also sets
- * flags for repeating and inverting the waveform, if requested.
- *
- * @param fg Pointer to the function generator structure to initialize
- * @param type The waveform type (sine, square, sawtooth)
- * @param period_ms The period of the waveform in milliseconds
- * @param sample_rate_ms The sample rate in milliseconds
- * @param min_value The minimum value of the waveform
- * @param max_value The maximum value of the waveform
- * @param flags Flags to configure waveform properties (e.g., repeat, invert)
+ * @param angle BAM angle.
+ * @return Q15 value in [-32768, 32767] representing [-1.0, ~1.0].
  */
+static int16_t tiny_sin_bam(uint16_t angle)
+{
+    uint8_t quadrant = (uint8_t)(angle >> 14);
+    uint16_t quadrant_angle = angle & 0x3FFFU;
+    int16_t magnitude;
+
+    if ((quadrant & 1U) != 0U)
+    {
+        quadrant_angle = (uint16_t)(0x3FFFU - quadrant_angle);
+    }
+    magnitude = sine_lut[quadrant_angle >> 8];
+
+    return (quadrant >= 2U) ? (int16_t)(-magnitude) : magnitude;
+}
+
 lcm_status_t function_generator_init(function_generator_t *fg, const waveform_t type,
-                                     const float period_ms, const float sample_rate_ms,
-                                     const float min_value, const float max_value,
+                                     const uint32_t period_ms, const uint32_t sample_rate_ms,
+                                     const fixed16_t min_value, const fixed16_t max_value,
                                      const uint8_t flags, const uint16_t sequence)
 {
     // Check for null pointer
@@ -50,35 +74,39 @@ lcm_status_t function_generator_init(function_generator_t *fg, const waveform_t 
     }
 
     // Check for invalid parameters
-    if (period_ms <= 0.0f || sample_rate_ms <= 0.0f || min_value > max_value)
+    if (period_ms == 0U || sample_rate_ms == 0U || min_value > max_value)
     {
         return LCM_ERROR_INVALID_PARAM;
     }
 
     fg->type = type;
-    fg->increment = TWO_PI / (period_ms / (float)sample_rate_ms);
+    // BAM increment per sample: one full turn (65536) divided across
+    // (period_ms / sample_rate_ms) samples. Both operands are unsigned
+    // durations, so this is a free unsigned divide (already linked in for
+    // other reasons elsewhere in the firmware).
+    fg->increment = (uint16_t)(((uint32_t)65536U * sample_rate_ms) / period_ms);
     fg->repeat = (flags & FG_FLAG_REPEAT) != 0;
     fg->inverse = (flags & FG_FLAG_INVERT) != 0;
-    fg->phase = 0.0f;
+    fg->phase = 0U;
     fg->sequence = sequence;
 
     // Set waveform specific parameters
     function_generator_update_range(fg, min_value, max_value);
     if (type == FUNCTION_GENERATOR_SQUARE || type == FUNCTION_GENERATOR_SINE)
     {
-        fg->phase = 3.0f * M_PI / 2.0f; // Start at 270 degrees
+        fg->phase = 0xC000U; // Start at 270 degrees (270/360 * 65536)
     }
 
     return LCM_SUCCESS;
 }
 
-lcm_status_t function_generator_update_range(function_generator_t *fg, const float min_value,
-                                             const float max_value)
+lcm_status_t function_generator_update_range(function_generator_t *fg, const fixed16_t min_value,
+                                             const fixed16_t max_value)
 {
     if (fg != NULL)
     {
-        fg->scale = (max_value - min_value) / 2.0f;
-        fg->offset = (min_value + max_value) / 2.0f;
+        fg->scale = (max_value - min_value) / 2;
+        fg->offset = (min_value + max_value) / 2;
         return LCM_SUCCESS;
     }
 
@@ -86,96 +114,85 @@ lcm_status_t function_generator_update_range(function_generator_t *fg, const flo
 }
 
 /**
- * @brief Increments the phase of a function generator and wraps it within [0,
- * 2*PI]
- *
- * This function increments the phase of a function generator based on the
- * frequency and sample rate. If the phase exceeds 2*PI, it wraps back to 0 if
- * the repeat flag is set, or returns false if it is not.
+ * @brief Increments the phase of a function generator and wraps it within
+ * [0, 65535] (one full BAM turn)
  *
  * @param fg Pointer to the function generator structure
- * @param repeat Whether to wrap the phase back to 0 if it exceeds 2*PI
+ * @param repeat Whether to wrap the phase back to 0 if it exceeds one turn
  * @return true if successful, false if end of wave is reached
  */
 lcm_status_t function_generator_increment_phase(function_generator_t *fg, const bool repeat)
 {
+    uint32_t next;
+
     if (fg == NULL)
     {
         return LCM_ERROR_NULL_POINTER;
     }
 
-    // Increment the phase based on frequency and sample rate
-    fg->phase += fg->increment;
+    next = (uint32_t)fg->phase + fg->increment;
 
-    // Wrap phase to stay within [0, 2*PI]
     if (repeat)
     {
-        if (fg->phase >= TWO_PI)
-        {
-            fg->phase -= TWO_PI;
-        }
+        // Free wraparound: truncating a uint32_t sum of two uint16_t values
+        // to uint16_t is exactly mod 65536.
+        fg->phase = (uint16_t)next;
     }
-    else if (fg->phase >= TWO_PI)
+    else if (next >= 0x10000U)
     {
-        // If not repeating, return stop iteration
-        fg->phase = TWO_PI;
+        // End of a non-repeating wave: saturate at the sentinel instead of
+        // wrapping, checked by calculate_sample() below.
+        fg->phase = 0xFFFFU;
+    }
+    else
+    {
+        fg->phase = (uint16_t)next;
     }
 
     return LCM_SUCCESS;
 }
 
 /**
- * @brief Calculates a waveform sample based on the current phase.
+ * @brief Calculates a waveform sample based on the given phase.
  *
- * This function calculates a sample value from the function generator
- * based on the provided phase and waveform type. The sample is
- * normalized between -1 and 1 and then scaled and offset to fit
- * the desired output range specified in the function generator
- * structure. If the inversion flag is set, the sample is inverted.
- *
- * @param phase The current phase of the waveform in radians.
- * @param fg Pointer to the function generator structure containing
- *           waveform type, scaling, and offset information.
- * @param sample Pointer to the float where the calculated sample
- *               will be stored.
+ * @param phase BAM phase, [0, 65535].
+ * @param fg Pointer to the function generator structure.
+ * @param sample Pointer to the fixed16_t where the calculated sample will
+ *               be stored.
  * @return LCM_SUCCESS if the calculation is successful,
  *         LCM_ERROR_NULL_POINTER if any pointer is NULL,
- *         and LCM_ERROR_INVALID_PARAM if the phase is out of bounds.
+ *         LCM_STOP_ITERATION if this was the last sample of a
+ *         non-repeating wave.
  */
-lcm_status_t calculate_sample(const float phase, const function_generator_t *fg, float *sample)
+lcm_status_t calculate_sample(const uint16_t phase, const function_generator_t *fg, fixed16_t *sample)
 {
-    float normalized_sample = 0.0f;
+    int16_t normalized_sample = 0;
 
     if (fg == NULL || sample == NULL)
     {
         return LCM_ERROR_NULL_POINTER;
     }
 
-    if (phase > TWO_PI || phase < 0.0f)
-    {
-        return LCM_ERROR_INVALID_PARAM;
-    }
-
     switch (fg->type)
     {
     case FUNCTION_GENERATOR_SINE:
-        normalized_sample = tiny_sinf(phase);
+        normalized_sample = tiny_sin_bam(phase);
         break;
     case FUNCTION_GENERATOR_SQUARE:
-        normalized_sample = (phase < M_PI) ? -1.0f : 1.0f;
+        normalized_sample = (phase < 0x8000U) ? INT16_MIN : INT16_MAX;
         break;
     case FUNCTION_GENERATOR_SAWTOOTH:
-        normalized_sample = (phase / M_PI) - 1.0f;
+        normalized_sample = (int16_t)(phase - 0x8000U);
         break;
     case FUNCTION_GENERATOR_SEQUENCE: {
-        uint16_t step = (uint16_t)(phase / (TWO_PI / 16));
-        if (fg->sequence & (1 << (15 - step)))
+        uint16_t step = (uint16_t)(phase >> 12); // phase / (65536 / 16)
+        if (fg->sequence & (1U << (15U - step)))
         {
-            normalized_sample = 1.0f;
+            normalized_sample = INT16_MAX;
         }
         else
         {
-            normalized_sample = -1.0f;
+            normalized_sample = INT16_MIN;
         }
         break;
     }
@@ -186,15 +203,15 @@ lcm_status_t calculate_sample(const float phase, const function_generator_t *fg,
     // Apply inversion if requested
     if (fg->inverse)
     {
-        normalized_sample = -normalized_sample;
+        normalized_sample = (int16_t)(-normalized_sample);
     }
 
-    // Map the normalized sample (-1 to 1) to the desired range [min_value,
-    // max_value]
-    *sample = fg->scale * normalized_sample + fg->offset;
+    // Map the normalized Q15 sample ([-1,1]) to [min_value, max_value]:
+    // widen Q15 to Q16.16 (shift left by 1) before the fixed multiply.
+    *sample = fixed_mul16(fg->scale, (int32_t)normalized_sample << 1) + fg->offset;
 
     // Special case for end of non-repeating wave
-    if (phase >= TWO_PI && fg->repeat == false)
+    if (phase == 0xFFFFU && fg->repeat == false)
     {
         return LCM_STOP_ITERATION;
     }
@@ -202,18 +219,7 @@ lcm_status_t calculate_sample(const float phase, const function_generator_t *fg,
     return LCM_SUCCESS;
 }
 
-/**
- * @brief Retrieves the next sample from the function generator
- *
- * This function retrieves the next sample from the function generator and
- * stores it in the sample pointer. If the end of the wave is reached, the
- * function will return false.
- *
- * @param fg Pointer to the function generator structure
- * @param sample Pointer to the float to store the sample in
- * @return true if successful, false if end of wave is reached
- */
-lcm_status_t function_generator_next_sample(function_generator_t *fg, float *sample)
+lcm_status_t function_generator_next_sample(function_generator_t *fg, fixed16_t *sample)
 {
     lcm_status_t result = LCM_SUCCESS;
 
@@ -231,73 +237,49 @@ lcm_status_t function_generator_next_sample(function_generator_t *fg, float *sam
     return result;
 }
 
-/**
- * @brief Retrieves a sample from the function generator at an offset
- *
- * This function retrieves a sample from the function generator at an offset
- * and stores it in the sample pointer. If the offset is larger than the length
- * of the wave, the function will return false.
- *
- * @param fg Pointer to the function generator structure
- * @param sample Pointer to the float to store the sample in
- * @param offset Offset in the wave to peek
- * @return true if successful, false if offset is larger than the wave length
- */
-lcm_status_t function_generator_peek_sample(const function_generator_t *fg, float *sample,
+lcm_status_t function_generator_peek_sample(const function_generator_t *fg, fixed16_t *sample,
                                             const uint16_t offset)
 {
+    uint32_t future_phase;
+
     if (fg == NULL || sample == NULL)
     {
         return LCM_ERROR_NULL_POINTER;
     }
 
-    float future_phase = fg->phase + (fg->increment * offset);
+    future_phase = (uint32_t)fg->phase + ((uint32_t)fg->increment * offset);
 
-    if (future_phase >= TWO_PI)
+    if (fg->repeat)
     {
-        // If repeating, wrap phase to stay within [0, 2*PI],
-        // otherwise set phase to 2*PI (max value)
-        if (fg->repeat)
-        {
-            future_phase = tiny_fmodf(future_phase, TWO_PI);
-        }
-        else
-        {
-            future_phase = TWO_PI;
-        }
+        // AND-mask is an exact mod-65536, regardless of how many turns
+        // future_phase has crossed.
+        future_phase &= 0xFFFFU;
     }
-    return calculate_sample(future_phase, fg, sample);
+    else if (future_phase >= 0x10000U)
+    {
+        future_phase = 0xFFFFU;
+    }
+
+    return calculate_sample((uint16_t)future_phase, fg, sample);
 }
 
-/**
- * @brief Initializes the function generator with an initial sample.
- *
- * This function sets the initial sample for the function generator and performs
- * necessary checks and calculations to ensure the sample is valid and properly
- * normalized.
- *
- * @param fg Pointer to the function generator structure.
- * @param sample The initial sample value to be set.
- * @return lcm_status_t Returns LCM_SUCCESS if the initialization is successful,
- *         otherwise returns an error code:
- *         - LCM_ERROR_NULL_POINTER if the fg pointer is NULL.
- *         - LCM_ERROR_INVALID_PARAM if the scale is zero or the normalized
- * value is outside the range [-1, 1].
- */
-lcm_status_t function_generator_initial_sample(function_generator_t *fg, const float sample)
+lcm_status_t function_generator_initial_sample(function_generator_t *fg, const fixed16_t sample)
 {
+    int32_t normalized_value;
+
     if (fg == NULL)
     {
         return LCM_ERROR_NULL_POINTER;
     }
 
     // Do not divide by zero
-    if (fg->scale == 0.0f)
+    if (fg->scale == 0)
     {
         return LCM_ERROR_INVALID_PARAM;
     }
 
-    float normalized_value = (sample - fg->offset) / fg->scale;
+    // normalized = (sample - offset) / scale, as a Q16.16 ratio in [-1, 1]
+    normalized_value = (int32_t)(((int64_t)(sample - fg->offset) << 16) / fg->scale);
 
     // Apply inversion if requested
     if (fg->inverse)
@@ -306,7 +288,7 @@ lcm_status_t function_generator_initial_sample(function_generator_t *fg, const f
     }
 
     // Check if normalized value is within [-1, 1]
-    if (normalized_value > 1.0f || normalized_value < -1.0f)
+    if (normalized_value > FIXED16(1.0) || normalized_value < FIXED16(-1.0))
     {
         return LCM_ERROR_INVALID_PARAM;
     }
@@ -314,7 +296,9 @@ lcm_status_t function_generator_initial_sample(function_generator_t *fg, const f
     switch (fg->type)
     {
     case FUNCTION_GENERATOR_SAWTOOTH:
-        fg->phase = (normalized_value + 1.0f) * M_PI;
+        // Inverse of the forward sawtooth mapping (phase - 0x8000 -> Q15
+        // normalized, widened by <<1 to Q16.16 in calculate_sample()).
+        fg->phase = (uint16_t)(0x8000 + (normalized_value >> 1));
         break;
     default:
         return LCM_ERROR_INVALID_PARAM;

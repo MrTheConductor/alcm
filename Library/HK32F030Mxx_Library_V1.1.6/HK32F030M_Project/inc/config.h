@@ -42,8 +42,8 @@
 //------------------------------------------------------------------------------
 #define STOPPED_RPM_THRESHOLD 20           // RPM threshold for stopped
 #define SLOW_RPM_THRESHOLD 2000            // RPM threshold for slow riding speed (3-4 MPH)
-#define DUTY_CYCLE_DANGER_THRESHOLD 90.0f  // Duty cycle threshold for danger zone
-#define DUTY_CYCLE_WARNING_THRESHOLD 80.0f // Duty cycle threshold for warning zone
+#define DUTY_CYCLE_DANGER_THRESHOLD 900  // Duty cycle threshold for danger zone (tenths of a %)
+#define DUTY_CYCLE_WARNING_THRESHOLD 800 // Duty cycle threshold for warning zone (tenths of a %)
 
 //------------------------------------------------------------------------------
 // Button configuration 
@@ -70,7 +70,7 @@
 #define SLOW_BREATH_PERIOD 6000U            // How fast to "breathe" headlights when dozing (ms)
 #define FAST_BREATH_PERIOD 500U             // How fast to flash headlights (ms)
 #define FADE_PERIOD 500U                    // How long to fade out headlights on disable (ms) 
-#define RPM_HYSTERISIS 40.0f                // How many ERPMs (+/-) to allow before changing direction
+#define RPM_HYSTERISIS 40                   // How many ERPMs (+/-) to allow before changing direction
 #define HEADLIGHTS_IDLE_BRIGHTNESS 0.20f    // Brightness of headlights when idle (0.0 to 1.0) 
 
 //------------------------------------------------------------------------------
@@ -83,10 +83,10 @@
 // board like an XR.
 #define ENABLE_STATUS_LEDS 1                      // Enable the status LEDs
 #define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down
-#define LOW_BATTERY_THRESHOLD (15.0f)             // Threshold for yellow/always on indicator
-#define CRITICAL_BATTERY_THRESHOLD (5.0f)         // Threshold for red flashing indicator
+#define LOW_BATTERY_THRESHOLD (150)               // Threshold for yellow/always on indicator (tenths of a %)
+#define CRITICAL_BATTERY_THRESHOLD (50)           // Threshold for red flashing indicator (tenths of a %)
 #define STATUS_LEDS_SCAN_SPEED (2000U)            // Speed of the scan animation (ms)
-#define DISABLED_BREATH_PERIOD (3000.0f)          // Speed of the locked/disabled breathing animation (ms)
+#define DISABLED_BREATH_PERIOD (3000U)            // Speed of the locked/disabled breathing animation (ms)
 
 //------------------------------------------------------------------------------
 // Animation configuration 

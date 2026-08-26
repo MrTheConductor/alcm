@@ -40,7 +40,7 @@ void status_leds_hw_refresh()
     function_called();
 }
 
-void status_leds_hw_set_brightness(float brightness)
+void status_leds_hw_set_brightness(uint8_t brightness)
 {
     check_expected(brightness);
 }

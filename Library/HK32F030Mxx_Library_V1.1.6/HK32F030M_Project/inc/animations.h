@@ -22,11 +22,13 @@
 // Include hardware-specific definitions and functions for controlling status
 // LEDs
 #include "status_leds_hw.h"
+#include "function_generator.h"
 
-#define SIGMA_DEFAULT 0.7f      // default sigma value
-#define SATURATION_DEFAULT 1.0f // full saturation
-#define LIGHTNESS_DEFAULT 0.5f  // half lightness
-#define LIGHTNESS_DEFAULT 0.5f  // half lightness
+// Scan animations always use this sigma - scan_animation_setup() no longer
+// takes a sigma parameter (see animations.c's calculate_brightness()).
+#define SIGMA_DEFAULT 0.7f
+#define SATURATION_DEFAULT 255U // full saturation (scale8 domain: 0-255 = 0.0-1.0)
+#define LIGHTNESS_DEFAULT 128U  // half lightness (scale8 domain: 0-255 = 0.0-1.0)
 
 /**
  * @brief Enumeration for different scan directions.
@@ -114,22 +116,21 @@ typedef void (*animation_callback_t)(void);
  * @param buffer Pointer to the LED buffer to be used for the animation.
  * @param direction The direction of the scan (e.g., left-to-right, right-to-left).
  * @param color_mode The color animation mode (e.g., HSV increase, RGB).
- * @param movement_speed The speed of the scan movement.
- * @param sigma The sigma value for the animation (affects spread or intensity).
- * @param hue_min The minimum hue value for the color range.
- * @param hue_max The maximum hue value for the color range.
- * @param color_speed The speed of the color change.
+ * @param movement_speed The speed of the scan movement, in ms.
+ * @param hue_min The minimum hue value for the color range (Q16.16 degrees).
+ * @param hue_max The maximum hue value for the color range (Q16.16 degrees).
+ * @param color_speed The speed of the color change, in ms.
  * @param scan_start The starting position of the scan (e.g., default, arbitrary mu).
  * @param scan_end The condition for ending the scan (e.g., never, single tick).
- * @param init_mu The initial mu value for the scan.
+ * @param init_mu The initial mu value for the scan (Q16.16 LED index).
  * @param rgb Pointer to an RGB color structure for solid color mode.
  *
  * @return The ID of the created animation.
  */
 uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t direction,
-                              color_mode_t color_mode, float movement_speed, float sigma,
-                              float hue_min, float hue_max, float color_speed,
-                              scan_start_t scan_start, scan_end_t scan_end, float init_mu,
+                              color_mode_t color_mode, uint32_t movement_speed,
+                              fixed16_t hue_min, fixed16_t hue_max, uint32_t color_speed,
+                              scan_start_t scan_start, scan_end_t scan_end, fixed16_t init_mu,
                               const status_leds_color_t *rgb);
 
 /**
@@ -144,12 +145,12 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
  * @param fill_mode            The mode of filling LEDs (e.g., sequential, random).
  * @param first_led            Index of the first LED in the range to be animated.
  * @param last_led             Index of the last LED in the range to be animated.
- * @param hue_min              Minimum hue value for the color range (0.0 to 1.0).
- * @param hue_max              Maximum hue value for the color range (0.0 to 1.0).
- * @param color_speed          Speed of color transitions.
- * @param brightness_min       Minimum brightness value (0.0 to 1.0).
- * @param brightness_max       Maximum brightness value (0.0 to 1.0).
- * @param brightness_speed     Speed of brightness transitions.
+ * @param hue_min              Minimum hue value for the color range (Q16.16 degrees).
+ * @param hue_max              Maximum hue value for the color range (Q16.16 degrees).
+ * @param color_speed          Speed of color transitions, in ms.
+ * @param brightness_min       Minimum brightness value (Q16.16, 0.0 to 1.0).
+ * @param brightness_max       Maximum brightness value (Q16.16, 0.0 to 1.0).
+ * @param brightness_speed     Speed of brightness transitions, in ms.
  * @param brightness_sequence  Sequence pattern for brightness changes.
  * @param rgb                  Pointer to a constant color structure for static RGB values.
  *
@@ -157,10 +158,10 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
  */
 uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mode,
                               brightness_mode_t brightness_mode, fill_mode_t fill_mode,
-                              uint8_t first_led, uint8_t last_led, float hue_min, float hue_max,
-                              float color_speed, float brightness_min, float brightness_max,
-                              float brightness_speed, uint16_t brightness_sequence,
-                              const status_leds_color_t *rgb);
+                              uint8_t first_led, uint8_t last_led, fixed16_t hue_min,
+                              fixed16_t hue_max, uint32_t color_speed, fixed16_t brightness_min,
+                              fixed16_t brightness_max, uint32_t brightness_speed,
+                              uint16_t brightness_sequence, const status_leds_color_t *rgb);
 
 /**
  * @brief Sets up a fade animation for status LEDs.
@@ -213,13 +214,13 @@ void stop_animation(void);
  * are stored in a status_leds_color_t struct with each component scaled
  * to the range [0, 255].
  *
- * @param h The hue component of the color in degrees.
- * @param s The saturation component of the color.
- * @param l The lightness component of the color.
+ * @param h The hue component of the color, Q16.16 degrees.
+ * @param s The saturation component of the color, 0-255 = 0.0-1.0.
+ * @param l The lightness component of the color, 0-255 = 0.0-1.0.
  * @param color Pointer to a status_leds_color_t struct to store the resulting
  * RGB values.
  */
-void hsl_to_rgb(float h, float s, float l, status_leds_color_t *color);
+void hsl_to_rgb(fixed16_t h, uint8_t s, uint8_t l, status_leds_color_t *color);
 
 /**
  * @brief Retrieves the ID of the current animation.

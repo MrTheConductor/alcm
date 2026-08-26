@@ -43,11 +43,10 @@ void status_leds_hw_refresh(void) {
     }
 }
 
-void status_leds_hw_set_brightness(float brightness) {
-    // Clamp to [0.0, 1.0] and convert to 0-256 scale
-    if (brightness < 0.0f) brightness = 0.0f;
-    if (brightness > 1.0f) brightness = 1.0f;
-    brightness_scale = (uint16_t)(brightness * 256.0f);
+void status_leds_hw_set_brightness(uint8_t brightness) {
+    // 0-255 = 0.0-1.0, converted to 0-256 scale (matches the real
+    // firmware's scale8->scale9 trick: 255 maps to 256 = full brightness).
+    brightness_scale = (uint16_t)brightness + ((uint16_t)brightness >> 7);
 }
 
 void status_leds_hw_enable(bool enable) {

@@ -121,7 +121,7 @@ TIMER_CALLBACK(buzzer, tick)
 {
     // Ignore unused parameter
     (void)system_tick;
-    float sample = 0.0f;
+    fixed16_t sample = 0;
 
     if (function_generator_next_sample(&fg, &sample) != LCM_SUCCESS)
     {
@@ -129,7 +129,7 @@ TIMER_CALLBACK(buzzer, tick)
     }
     else
     {
-        if (sample <= 0.0f)
+        if (sample <= 0)
         {
             buzzer_off();
         }
@@ -148,7 +148,7 @@ TIMER_CALLBACK(buzzer, tick)
 void buzzer_play_sequence(uint16_t sequence, bool_t repeat)
 {
     function_generator_init(&fg, FUNCTION_GENERATOR_SEQUENCE, SEQUENCE_PERIOD_MS, TICK_INTERVAL_MS,
-                            0.0f, 1.0f, repeat ? FG_FLAG_REPEAT : 0, sequence);
+                            FIXED16(0.0), FIXED16(1.0), repeat ? FG_FLAG_REPEAT : 0, sequence);
 
     // Start the timer
     if (buzzer_timer_id == INVALID_TIMER_ID || !is_timer_active(buzzer_timer_id))

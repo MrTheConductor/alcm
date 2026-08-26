@@ -31,8 +31,8 @@
 /**
  * @brief Initializes the hysteresis structure with specified thresholds.
  */
-lcm_status_t hysteresis_init(hysteresis_t *hysteresis, float32_t set_threshold,
-                             float32_t reset_threshold)
+lcm_status_t hysteresis_init(hysteresis_t *hysteresis, int32_t set_threshold,
+                             int32_t reset_threshold)
 {
     lcm_status_t status = LCM_SUCCESS;
 
@@ -58,7 +58,7 @@ lcm_status_t hysteresis_init(hysteresis_t *hysteresis, float32_t set_threshold,
 /**
  * @brief Applies hysteresis logic to a given value.
  */
-hys_state_t apply_hysteresis(hysteresis_t *hysteresis, float32_t value)
+hys_state_t apply_hysteresis(hysteresis_t *hysteresis, int32_t value)
 {
     hys_state_t state = STATE_ERROR;
 

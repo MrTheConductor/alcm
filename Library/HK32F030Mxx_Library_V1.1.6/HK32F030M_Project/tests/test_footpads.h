@@ -68,8 +68,8 @@ void test_footpads_init(void **state)
 void assert_left_footpad(void)
 {
     // Set hardware to return a left footpad
-    will_return(footpads_hw_get_left, 3.0f);
-    will_return(footpads_hw_get_right, 0.0f);
+    will_return(footpads_hw_get_left, 3000);
+    will_return(footpads_hw_get_right, 0);
 
     // Expect a footpad event
     expect_value(event_queue_push, event, EVENT_FOOTPAD_CHANGED);
@@ -87,8 +87,8 @@ void assert_left_footpad(void)
 void assert_right_footpad(void)
 {
     // Set hardware to return a left footpad
-    will_return(footpads_hw_get_left, 0.0f);
-    will_return(footpads_hw_get_right, 3.0f);
+    will_return(footpads_hw_get_left, 0);
+    will_return(footpads_hw_get_right, 3000);
 
     // Expect a footpad event
     expect_value(event_queue_push, event, EVENT_FOOTPAD_CHANGED);
@@ -106,8 +106,8 @@ void assert_right_footpad(void)
 void assert_both_footpads(void)
 {
     // Set hardware to return a left footpad
-    will_return(footpads_hw_get_left, 3.0f);
-    will_return(footpads_hw_get_right, 3.0f);
+    will_return(footpads_hw_get_left, 3000);
+    will_return(footpads_hw_get_right, 3000);
 
     // Expect a footpad event
     expect_value(event_queue_push, event, EVENT_FOOTPAD_CHANGED);
@@ -125,8 +125,8 @@ void assert_both_footpads(void)
 void release_footpads(void)
 {
     // Set hardware to return a left footpad
-    will_return(footpads_hw_get_left, 0.0f);
-    will_return(footpads_hw_get_right, 0.0f);
+    will_return(footpads_hw_get_left, 0);
+    will_return(footpads_hw_get_right, 0);
 
     // Expect a footpad event
     expect_value(event_queue_push, event, EVENT_FOOTPAD_CHANGED);

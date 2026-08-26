@@ -135,16 +135,16 @@ typedef union {
     footpads_state_t footpads_state;
     emergency_fault_t emergency_fault;
     button_event_data_t button_data;
-    float32_t duty_cycle;
+    int16_t duty_cycle;   // Tenths of a percent
     int32_t rpm;
-    float32_t voltage;
-    float32_t battery_level;
+    int16_t voltage;      // Tenths of a volt
+    int16_t battery_level; // Tenths of a percent
     uint8_t vesc_fault;
     uint8_t click_count;
     command_processor_context_t context;
     bool_t enable;
-    float32_t imu_pitch;
-    float32_t imu_roll;
+    int32_t imu_pitch; // Millidegrees
+    int32_t imu_roll;  // Millidegrees
 } event_data_t;
 
 /**

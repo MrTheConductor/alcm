@@ -30,7 +30,13 @@
  *             If the magic number in the settings does not match this value, the
  *             settings are considered invalid and will be reset to default values.
  */
-#define MAGIC_NUMBER 0xbeef0001
+// Bumped from 0xbeef0001: headlight_brightness/status_brightness/
+// personal_color changed from float to uint8_t/uint8_t/uint16_t as part of
+// removing the soft-float runtime. The CRC alone can't detect this (it's
+// byte-content-only, agnostic to how the bytes are now interpreted), so the
+// magic bump is what forces a reset to defaults instead of silently
+// reinterpreting old float bit patterns as the new integer types.
+#define MAGIC_NUMBER 0xbeef0002
 
 /**
  * @brief      Structure to represent the settings in the EEPROM.
@@ -70,9 +76,9 @@ void settings_reset(void)
     eeprom.settings.dozing_animation = ANIMATION_OPTION_NONE;
     eeprom.settings.shutdown_animation = ANIMATION_OPTION_NONE;
     eeprom.settings.ride_animation = ANIMATION_OPTION_NONE;
-    eeprom.settings.headlight_brightness = 0.8f;
-    eeprom.settings.status_brightness = 0.8f;
-    eeprom.settings.personal_color = 200.0f; // Light blue
+    eeprom.settings.headlight_brightness = 204U; // 0.8 * 255
+    eeprom.settings.status_brightness = 204U;    // 0.8 * 255
+    eeprom.settings.personal_color = 200U;       // Light blue
 
     // Save
     settings_save();
@@ -97,15 +103,8 @@ bool_t settings_range_check(void)
     {
         valid = false;
     }
-    else if (eeprom.settings.headlight_brightness < 0.0f ||
-             eeprom.settings.headlight_brightness > 1.0f)
-    {
-        valid = false;
-    }
-    else if (eeprom.settings.status_brightness < 0.0f || eeprom.settings.status_brightness > 1.0f)
-    {
-        valid = false;
-    }
+    // headlight_brightness/status_brightness are uint8_t - inherently in
+    // range, nothing to check.
     else if (eeprom.settings.boot_animation >= ANIMATION_OPTION_COUNT ||
              eeprom.settings.idle_animation >= ANIMATION_OPTION_COUNT ||
              eeprom.settings.dozing_animation >= ANIMATION_OPTION_COUNT ||
@@ -121,7 +120,7 @@ bool_t settings_range_check(void)
     {
         valid = false;
     }
-    else if (eeprom.settings.personal_color < 0.0f || eeprom.settings.personal_color > 360.0f)
+    else if (eeprom.settings.personal_color >= 360U)
     {
         valid = false;
     }

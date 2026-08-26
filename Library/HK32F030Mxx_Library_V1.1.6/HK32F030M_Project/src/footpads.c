@@ -25,7 +25,11 @@
 
 // Definitions
 #define FOOTPADS_SAMPLE_INTERVAL 100U // 100 ms
-#define FOOTPADS_THRESHOLD 2.5f       // 2.5 V
+// Raw ADC threshold equivalent to 2.5V, given footpads_hw's ADC scale of
+// 0.0012890625 V/count (2.5f / 0.0012890625f = 1939.39..., rounded up to
+// the smallest integer count whose scaled voltage exceeds 2.5V - preserves
+// the original "> 2.5V" comparison exactly for all integer ADC readings).
+#define FOOTPADS_THRESHOLD_ADC 1940U
 
 // Forward declarations
 EVENT_HANDLER(footpads, board_mode_changed);
@@ -113,15 +117,15 @@ EVENT_HANDLER(footpads, board_mode_changed)
 TIMER_CALLBACK(footpads, sample)
 {
     footpads_state_t new_state = 0;
-    float left = footpads_hw_get_left();
-    float right = footpads_hw_get_right();
+    uint16_t left = footpads_hw_get_left();
+    uint16_t right = footpads_hw_get_right();
 
-    if (left > FOOTPADS_THRESHOLD)
+    if (left > FOOTPADS_THRESHOLD_ADC)
     {
         new_state |= LEFT_FOOTPAD;
     }
 
-    if (right > FOOTPADS_THRESHOLD)
+    if (right > FOOTPADS_THRESHOLD_ADC)
     {
         new_state |= RIGHT_FOOTPAD;
     }

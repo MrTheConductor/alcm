@@ -15,14 +15,15 @@ void footpads_hw_init(void) {
     g_footpad_right_voltage = 0.0f;
 }
 
-float footpads_hw_get_left(void) {
-    // Return voltage set by GUI
-    return g_footpad_left_voltage;
+uint16_t footpads_hw_get_left(void) {
+    // Convert the GUI-set voltage back into a raw ADC count, matching the
+    // real firmware's footpads_hw_get_left() contract (uint16_t counts, not
+    // volts) now that the volts->threshold scaling lives in footpads.c.
+    return (uint16_t)(g_footpad_left_voltage / ADC_VOLTAGE_SCALE);
 }
 
-float footpads_hw_get_right(void) {
-    // Return voltage set by GUI
-    return g_footpad_right_voltage;
+uint16_t footpads_hw_get_right(void) {
+    return (uint16_t)(g_footpad_right_voltage / ADC_VOLTAGE_SCALE);
 }
 
 void footpads_hw_calibrate(void) {

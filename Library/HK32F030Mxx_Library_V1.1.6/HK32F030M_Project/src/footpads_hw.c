@@ -19,8 +19,6 @@
 #include "footpads_hw.h"
 #include "hk32f030m.h"
 
-#define SCALING_FACTOR 0.0012890625f
-
 // Function to calibrate the ADC for footpads hardware
 void footpads_hw_calibrate()
 {
@@ -76,14 +74,14 @@ uint16_t read_adc(uint8_t channel)
     return adc_value;
 }
 
-// Function to get the left footpad value
-float footpads_hw_get_left()
+// Function to get the left footpad raw ADC reading
+uint16_t footpads_hw_get_left()
 {
-    return (float)(read_adc(ADC_Channel_2) * SCALING_FACTOR);
+    return read_adc(ADC_Channel_2);
 }
 
-// Function to get the right footpad value
-float footpads_hw_get_right()
+// Function to get the right footpad raw ADC reading
+uint16_t footpads_hw_get_right()
 {
-    return (float)(read_adc(ADC_Channel_3) * SCALING_FACTOR);
+    return read_adc(ADC_Channel_3);
 }

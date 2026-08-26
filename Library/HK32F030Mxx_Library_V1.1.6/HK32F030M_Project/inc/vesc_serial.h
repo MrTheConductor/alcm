@@ -32,17 +32,17 @@ lcm_status_t vesc_serial_init(void);
 ring_buffer_t *vesc_serial_get_rx_buffer(void);
 
 // Getters for the VESC serial data
-float32_t vesc_serial_get_duty_cycle(void);
+int16_t vesc_serial_get_duty_cycle(void); // Tenths of a percent
 int32_t vesc_serial_get_rpm(void);
 #if defined(ENABLE_VOLTAGE_MONITORING)
-float32_t vesc_serial_get_input_voltage(void);
+int16_t vesc_serial_get_input_voltage(void); // Tenths of a volt
 #endif
-float32_t vesc_serial_get_battery_level(void);
+int16_t vesc_serial_get_battery_level(void); // Tenths of a percent
 uint8_t vesc_serial_get_fault(void);
 lcm_status_t vesc_serial_check_busy_and_set_callback(vesc_serial_callback_t callback);
 #if defined(ENABLE_IMU_EVENTS)
-float32_t vesc_serial_get_imu_pitch(void);
-float32_t vesc_serial_get_imu_roll(void);
+int32_t vesc_serial_get_imu_pitch(void); // Millidegrees
+int32_t vesc_serial_get_imu_roll(void);  // Millidegrees
 #endif
 
 #endif

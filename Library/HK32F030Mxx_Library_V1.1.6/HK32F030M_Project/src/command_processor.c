@@ -165,13 +165,21 @@ void command_processor_one_button_navigation(event_type_t event, uint8_t count)
 TIMER_CALLBACK(command_processor, brightness_repeat)
 {
     event_data_t event_data = {0};
+    fixed16_t sample = 0;
+    lcm_status_t status;
     event_data.context = current_context;
 
-    if (LCM_SUCCESS != function_generator_next_sample(
-                           &command_processor_fg,
-                           current_context == COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS
-                               ? &(command_processor_settings->status_brightness)
-                               : &(command_processor_settings->headlight_brightness)))
+    status = function_generator_next_sample(&command_processor_fg, &sample);
+    if (current_context == COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS)
+    {
+        command_processor_settings->status_brightness = fixed16_to_frac8(sample);
+    }
+    else
+    {
+        command_processor_settings->headlight_brightness = fixed16_to_frac8(sample);
+    }
+
+    if (LCM_SUCCESS != status)
     {
         // Beep at the limit
         event_queue_push(EVENT_COMMAND_NACK, NULL);
@@ -185,10 +193,14 @@ TIMER_CALLBACK(command_processor, brightness_repeat)
 TIMER_CALLBACK(command_processor, color_repeat)
 {
     event_data_t event_data = {0};
+    fixed16_t sample = 0;
+    lcm_status_t status;
     event_data.context = current_context;
 
-    if (LCM_SUCCESS != function_generator_next_sample(
-                           &command_processor_fg, &(command_processor_settings->personal_color)))
+    status = function_generator_next_sample(&command_processor_fg, &sample);
+    command_processor_settings->personal_color = fixed16_to_degrees(sample);
+
+    if (LCM_SUCCESS != status)
     {
         // Shouldn't happen unless we forgot to enable repeating
         event_queue_push(EVENT_COMMAND_NACK, NULL);
@@ -250,15 +262,15 @@ void command_processor_adjust_setting(command_processor_adjustment_t adjustment)
             // Setup generator
             function_generator_init(
                 &command_processor_fg, FUNCTION_GENERATOR_SAWTOOTH, BRIGHTNESS_RANGE_MS,
-                BRIGHTNESS_INCREMENT_MS, 0.0f, 1.0f,
+                BRIGHTNESS_INCREMENT_MS, FIXED16(0.0), FIXED16(1.0),
                 adjustment == COMMAND_PROCESSOR_INCREASE ? FG_FLAG_NONE : FG_FLAG_INVERT, 0);
 
             // Set initial value to the current setting
             function_generator_initial_sample(
                 &command_processor_fg,
-                current_context == COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS
-                    ? command_processor_settings->status_brightness
-                    : command_processor_settings->headlight_brightness);
+                frac8_to_fixed16(current_context == COMMAND_PROCESSOR_CONTEXT_STATUS_BAR_BRIGHTNESS
+                                     ? command_processor_settings->status_brightness
+                                     : command_processor_settings->headlight_brightness));
 
             // Start timer
             repeat_timer_id =
@@ -267,15 +279,16 @@ void command_processor_adjust_setting(command_processor_adjustment_t adjustment)
             break;
         case COMMAND_PROCESSOR_CONTEXT_PERSONAL_COLOR:
             function_generator_init(&command_processor_fg, FUNCTION_GENERATOR_SAWTOOTH,
-                                    COLOR_RANGE_MS, COLOR_INCREMENT_MS, 0.0f, 360.0f,
+                                    COLOR_RANGE_MS, COLOR_INCREMENT_MS, FIXED16(0.0), FIXED16(360.0),
                                     adjustment == COMMAND_PROCESSOR_INCREASE
                                         ? FG_FLAG_REPEAT
                                         : FG_FLAG_REPEAT | FG_FLAG_INVERT,
                                     0);
 
             // Set initial value to the current setting
-            function_generator_initial_sample(&command_processor_fg,
-                                              command_processor_settings->personal_color);
+            function_generator_initial_sample(
+                &command_processor_fg,
+                degrees_to_fixed16(command_processor_settings->personal_color));
 
             // Start timer
             repeat_timer_id = set_timer(COLOR_INCREMENT_MS,

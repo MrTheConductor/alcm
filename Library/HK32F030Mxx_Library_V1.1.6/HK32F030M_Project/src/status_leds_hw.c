@@ -96,16 +96,15 @@ void status_leds_hw_refresh()
 /**
  * @brief Sets the global brightness of the status LEDs.
  *
- * @param brightness Float value in the range [0.0f, 1.0f] to set the
- * global brightness to. The actual brightness of the LEDs will be
- * scaled by this value. The value is clamped to the range before
- * being applied.
+ * @param brightness Value in the range [0, 255] (0.0-1.0) to set the global
+ * brightness to. The actual brightness of the LEDs will be scaled by this
+ * value.
  */
-void status_leds_hw_set_brightness(float32_t brightness)
+void status_leds_hw_set_brightness(uint8_t brightness)
 {
-    float32_t new_brightness = CLAMP(brightness, 0.0f, 1.0f);
-    float32_t temp_float_scale = new_brightness * 256.0f;
-    brightness_scale = (uint16_t)(temp_float_scale);
+    // Standard scale8->scale9 trick: 255 maps to 256, so full brightness
+    // passes the color through unscaled in status_leds_hw_update()'s >>8.
+    brightness_scale = (uint16_t)brightness + ((uint16_t)brightness >> 7);
 }
 
 void status_leds_hw_enable(bool_t enable)
