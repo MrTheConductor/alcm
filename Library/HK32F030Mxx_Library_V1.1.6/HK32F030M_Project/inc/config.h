@@ -95,11 +95,11 @@
 // and to look cool.
 //
 // Individual animations can be enabled or disable to save code space. 
-#undef ENABLE_FIRE_ANIMATION            // Fire effect animation 
-#define ENABLE_KNIGHT_RIDER_ANIMATION 1 // Red "knight rider" animation
-#undef ENABLE_EXPANDING_PULSE_ANIMATION // Expanding pulse animation 
-#undef ENABLE_PULSE_ANIMATION           // Expanding pulse animation 
-#undef ENABLE_THE_FUZZ_ANIMATION        // The Fuzz animation 
+#define ENABLE_FIRE_ANIMATION 1            // Fire effect animation 
+#define ENABLE_KNIGHT_RIDER_ANIMATION 1    // Red "knight rider" animation
+#define ENABLE_EXPANDING_PULSE_ANIMATION 1 // Expanding pulse animation 
+#define ENABLE_IMPLODING_PULSE_ANIMATION 1 // Imploding pulse animation 
+#define ENABLE_THE_FUZZ_ANIMATION 1        // The Fuzz animation 
 
 //------------------------------------------------------------------------------
 // Buzzer configuration 
