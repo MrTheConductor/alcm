@@ -454,9 +454,11 @@ EVENT_HANDLER(headlights, state_change)
         break;
 #ifdef ENABLE_IMU_EVENTS
     case EVENT_IMU_PITCH_CHANGED:
-        // Update the pitch control factor based on the IMU pitch
+        // Update the pitch control factor based on the IMU pitch.
+        // imu_pitch is in millidegrees (see event_queue.h), so 60 degrees
+        // is 60000 here, not 60.
         {
-            if (data->imu_pitch >= 60.0f || data->imu_pitch <= -60.0f) {
+            if (data->imu_pitch >= 60000 || data->imu_pitch <= -60000) {
                 pitch_control = 0U;
             } else {
                 pitch_control = 255U;

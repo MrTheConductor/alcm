@@ -124,7 +124,8 @@ typedef void (*animation_tick_t)(uint32_t tick);
 static timer_id_t animation_timer = INVALID_TIMER_ID;
 static animation_config_t animation_config = {0};
 static animation_tick_t timer_callback = NULL;
-static uint16_t animation_id = 0U; // Current animation ID
+static uint16_t animation_id = 1U;         // Next ID to assign; 0 is reserved as "no animation"
+static uint16_t current_animation_id = 0U; // ID of the animation currently running
 
 // Each animation is implemented as a timer callback
 TIMER_CALLBACK(animation, tick);
@@ -575,44 +576,22 @@ void fill_animation_tick(uint32_t tick)
     case FILL_MODE_HSV_GRADIENT_MIRROR:
         // Mirror mode is similar to gradient mode, but we mirror the left
         // and right sides of the area
-        if ((animation_config.fill.last_led - animation_config.fill.first_led) % 2 == 1)
-        {
-            midpoint =
-                ((animation_config.fill.last_led - animation_config.fill.first_led) + 1) >> 1;
-        }
-        else
-        {
-            midpoint = (animation_config.fill.last_led - animation_config.fill.first_led) >> 1;
-        }
+        midpoint = (animation_config.fill.first_led + animation_config.fill.last_led) / 2;
 
         // Fill up to the midpoint
         gradient_fill(animation_config.fill.buffer, &animation_config.fill.color,
                       animation_config.fill.first_led, midpoint, b);
 
-        // Reflect other side
-        if ((animation_config.fill.last_led - animation_config.fill.first_led) % 2 == 1)
+        // Reflect the other side. Works for any first_led/last_led and
+        // either parity: buffer[i] mirrors the LED equidistant from the
+        // other end of the range.
+        for (uint8_t i = midpoint + 1; i <= animation_config.fill.last_led; i++)
         {
-            for (uint8_t i = midpoint + 1; i <= animation_config.fill.last_led; i++)
-            {
-                animation_config.fill.buffer[i].r =
-                    animation_config.fill.buffer[midpoint - (i - midpoint)].r;
-                animation_config.fill.buffer[i].g =
-                    animation_config.fill.buffer[midpoint - (i - midpoint)].g;
-                animation_config.fill.buffer[i].b =
-                    animation_config.fill.buffer[midpoint - (i - midpoint)].b;
-            }
-        }
-        else
-        {
-            for (uint8_t i = midpoint + 1; i <= animation_config.fill.last_led; i++)
-            {
-                animation_config.fill.buffer[i].r =
-                    animation_config.fill.buffer[midpoint - (i - midpoint + 1)].r;
-                animation_config.fill.buffer[i].g =
-                    animation_config.fill.buffer[midpoint - (i - midpoint + 1)].g;
-                animation_config.fill.buffer[i].b =
-                    animation_config.fill.buffer[midpoint - (i - midpoint + 1)].b;
-            }
+            uint8_t mirror_i =
+                animation_config.fill.first_led + animation_config.fill.last_led - i;
+            animation_config.fill.buffer[i].r = animation_config.fill.buffer[mirror_i].r;
+            animation_config.fill.buffer[i].g = animation_config.fill.buffer[mirror_i].g;
+            animation_config.fill.buffer[i].b = animation_config.fill.buffer[mirror_i].b;
         }
         break;
     default:
@@ -640,8 +619,10 @@ void scan_animation_tick(uint32_t tick)
     // Update animation parameters
     if (LCM_SUCCESS != function_generator_next_sample(&animation_config.scan.fg, &mu))
     {
-        // No more samples, disable animation
+        // No more samples, disable animation. The buffer already holds the
+        // final rendered frame - don't render another one with mu reset.
         stop_animation();
+        return;
     }
     next_color(&color, &animation_config.scan.color);
 
@@ -881,7 +862,8 @@ uint16_t scan_animation_setup(status_leds_color_t *buffer, scan_direction_t dire
     }
 
     // Return the animation ID
-    return animation_id++;
+    current_animation_id = animation_id++;
+    return current_animation_id;
 }
 
 /**
@@ -908,7 +890,8 @@ uint16_t fill_animation_setup(status_leds_color_t *buffer, color_mode_t color_mo
     animation_start(fill_animation_tick);
 
     // Return the animation ID
-    return animation_id++;
+    current_animation_id = animation_id++;
+    return current_animation_id;
 }
 
 /**
@@ -925,7 +908,8 @@ uint16_t fade_animation_setup(status_leds_color_t *buffer, uint16_t period,
     animation_start(fade_animation_tick);
 
     // Return the animation ID
-    return animation_id++;
+    current_animation_id = animation_id++;
+    return current_animation_id;
 }
 
 #ifdef ENABLE_FIRE_ANIMATION
@@ -941,7 +925,8 @@ uint16_t fire_animation_setup(status_leds_color_t *buffer)
     animation_start(fire_animation_tick);
 
     // Return the animation ID
-    return animation_id++;
+    current_animation_id = animation_id++;
+    return current_animation_id;
 }
 #endif
 
@@ -981,5 +966,5 @@ void stop_animation(void)
 
 uint16_t get_animation_id(void)
 {
-    return animation_id;
+    return current_animation_id;
 }

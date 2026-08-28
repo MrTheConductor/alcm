@@ -246,7 +246,7 @@ class ScenarioRunner
     ///
     ///   power:       enabled (bool)
     ///   status_led:  r_or_g_or_b_gt (byte),  led_index (byte)
-    ///   headlight:   brightness_gt (ushort),  direction (byte)
+    ///   headlight:   brightness_gt (ushort),  brightness_eq (ushort),  direction (byte)
     ///   debug:       contains (string, case-insensitive)
     ///   buzzer, vesc_request: no filters (any event of that type matches)
     Func<HwEvent, bool> BuildPredicate(string eventType, JsonElement? where)
@@ -284,6 +284,8 @@ class ScenarioRunner
                 {
                     if (where.Value.TryGetProperty("brightness_gt", out var bgt))
                         return e.HeadlightBrightness > bgt.GetUInt16();
+                    if (where.Value.TryGetProperty("brightness_eq", out var beq))
+                        return e.HeadlightBrightness == beq.GetUInt16();
                     if (where.Value.TryGetProperty("direction", out var dir))
                         return e.HeadlightDirection == dir.GetByte();
                 }

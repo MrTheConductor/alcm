@@ -16,6 +16,26 @@
     <Window.Resources>
         <!-- Converters -->
         <converters:BrightnessToOpacityConverter x:Key="BrightnessToOpacityConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
+        <!-- VESC Power Indicator LED -->
+        <Style x:Key="VescPowerLedStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Stroke" Value="#444444" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="Fill" Value="#552222" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding VescPowered}" Value="True">
+                    <Setter Property="Fill" Value="#2ECC40" />
+                    <Setter Property="Effect">
+                        <Setter.Value>
+                            <DropShadowEffect Color="#2ECC40" BlurRadius="14" ShadowDepth="0" Opacity="0.9" />
+                        </Setter.Value>
+                    </Setter>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         
         <!-- LED Style -->
         <Style x:Key="LedStyle" TargetType="Ellipse">
@@ -119,48 +139,102 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        
+
         <!-- Header -->
-        <TextBlock Grid.Row="0" 
-                   Text="ALCM Board Simulator" 
-                   FontSize="24" 
-                   FontWeight="Bold" 
-                   Foreground="#00D7FF" 
+        <TextBlock Grid.Row="0"
+                   Text="ALCM Board Simulator"
+                   FontSize="24"
+                   FontWeight="Bold"
+                   Foreground="#00D7FF"
                    Margin="0,0,0,20" />
-        
+
+        <!-- VESC Power Lost Alert Banner - loud and hard to miss -->
+        <Border Grid.Row="1"
+                Padding="14,10"
+                CornerRadius="4"
+                Margin="0,0,0,15"
+                Background="#CC0000"
+                Visibility="{Binding VescPowerAlert, Converter={StaticResource BoolToVisibilityConverter}}">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding VescPowerAlert}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="VescAlertFlash">
+                                    <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         From="1.0" To="0.55"
+                                                         Duration="0:0:0.4" />
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="VescAlertFlash" />
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="⚠ VESC POWER OFF — RIDER SAFETY HAZARD ⚠"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1"
+                        Content="Silence"
+                        Command="{Binding SilenceAlarmCommand}"
+                        Style="{StaticResource ButtonStyle}"
+                        ToolTip="Mute the siren without dismissing the warning" />
+            </Grid>
+        </Border>
+
         <!-- Control Panel -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,20">
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,20">
             <Button Content="Start" Command="{Binding StartCommand}" Style="{StaticResource ButtonStyle}" />
             <Button Content="Stop" Command="{Binding StopCommand}" Style="{StaticResource ButtonStyle}" />
             <Button Content="Reset" Command="{Binding ResetCommand}" Style="{StaticResource ButtonStyle}" />
-            
+
             <!-- Power Button (Momentary) -->
-            <Button Content="⚡ POWER" 
+            <Button Content="⚡ POWER"
                     Style="{StaticResource MomentaryButtonStyle}"
                     Margin="30,5,5,5"
                     PreviewMouseDown="PowerButton_MouseDown"
                     PreviewMouseUp="PowerButton_MouseUp"
                     MouseLeave="PowerButton_MouseLeave"
                     ToolTip="Hold to simulate power button press" />
-            
+
+            <!-- VESC Power Indicator -->
+            <StackPanel Orientation="Horizontal" Margin="30,0,0,0" VerticalAlignment="Center">
+                <Ellipse Style="{StaticResource VescPowerLedStyle}" Margin="0,0,8,0" />
+                <TextBlock Text="VESC PWR" Style="{StaticResource LabelStyle}" Margin="0" />
+            </StackPanel>
+
             <TextBlock Text="Time Scale:" Style="{StaticResource LabelStyle}" Margin="30,0,10,0" />
-            <Slider Width="150" 
-                    Minimum="1" 
-                    Maximum="10" 
-                    Value="{Binding TimeScale}" 
-                    TickFrequency="1" 
+            <Slider Width="150"
+                    Minimum="1"
+                    Maximum="10"
+                    Value="{Binding TimeScale}"
+                    TickFrequency="1"
                     IsSnapToTickEnabled="True"
                     VerticalAlignment="Center" />
-            <TextBlock Text="{Binding TimeScale, StringFormat={}{0}x}" 
-                       Style="{StaticResource ValueLabelStyle}" 
+            <TextBlock Text="{Binding TimeScale, StringFormat={}{0}x}"
+                       Style="{StaticResource ValueLabelStyle}"
                        Margin="10,0,0,0" />
         </StackPanel>
-        
+
         <!-- Main Content -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -327,9 +401,21 @@
                     <!-- VESC Data -->
                     <TextBlock Text="VESC Data" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
                     
-                    <!-- VESC Enable Toggle -->
-                    <CheckBox IsChecked="{Binding VescEnabled}" 
-                              Foreground="#CCCCCC" 
+                    <!-- VESC Enable Toggle - normally driven by VESC power +
+                         boot delay; override lets a tester force it directly -->
+                    <CheckBox IsChecked="{Binding VescEnableOverride}"
+                              Foreground="#FFAA00"
+                              Margin="0,0,0,6">
+                        <TextBlock>
+                            <Run Text="Override VESC Boot Delay (testing)" FontWeight="SemiBold" />
+                            <LineBreak />
+                            <Run Text="When off, VESC Enabled below auto-follows VESC power with a ~5s boot delay, like real hardware" FontSize="10" Foreground="#999999" />
+                        </TextBlock>
+                    </CheckBox>
+
+                    <CheckBox IsChecked="{Binding VescEnabled}"
+                              IsEnabled="{Binding VescEnableOverride}"
+                              Foreground="#CCCCCC"
                               Margin="0,0,0,10">
                         <TextBlock>
                             <Run Text="VESC Enabled" FontWeight="SemiBold" />
@@ -503,7 +589,7 @@
         </Grid>
         
         <!-- Status Bar -->
-        <Border Grid.Row="3" 
+        <Border Grid.Row="4"
                 Background="#007ACC" 
                 CornerRadius="3" 
                 Padding="10" 

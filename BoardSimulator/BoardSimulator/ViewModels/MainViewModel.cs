@@ -34,6 +34,11 @@ namespace BoardSimulator.ViewModels
         private string _statusText = "Not initialized";
         private bool _isButtonPressed;
         private bool _vescEnabled = true;
+        private bool _vescPowered = false;
+        private bool _vescPowerAlert = false;
+        private bool _vescEnableOverride = false;
+        private double _vescBootRemainingMs = 0;
+        private const double VescBootDelayMs = 2000.0; // real VESC takes ~5s to boot before it responds
         private bool _refloatInstalled = true;
         private bool _externalLedsEnabled = true;
         private bool _locked = false;
@@ -166,6 +171,41 @@ namespace BoardSimulator.ViewModels
             }
         }
 
+        // Reflects the real PWR_EN GPIO (power_hw_set_power). The LCM should
+        // only ever drive this low as part of an intentional shutdown - any
+        // other transition to off means the VESC just lost power mid-ride.
+        public bool VescPowered
+        {
+            get => _vescPowered;
+            private set => SetProperty(ref _vescPowered, value);
+        }
+
+        // True whenever VESC power has been cut - a critical safety event,
+        // since a powered-off VESC can't hold the rider up. Cleared when
+        // power is restored.
+        public bool VescPowerAlert
+        {
+            get => _vescPowerAlert;
+            private set => SetProperty(ref _vescPowerAlert, value);
+        }
+
+        // When off (default), VescEnabled is driven automatically by
+        // VescPowered plus the ~5s boot delay, matching real hardware. When
+        // on, the VESC Enabled checkbox can be toggled directly for testing.
+        public bool VescEnableOverride
+        {
+            get => _vescEnableOverride;
+            set
+            {
+                if (SetProperty(ref _vescEnableOverride, value) && !value)
+                {
+                    // Handing control back to the automatic state machine -
+                    // resync immediately instead of waiting for the next tick.
+                    VescEnabled = _vescPowered && _vescBootRemainingMs <= 0;
+                }
+            }
+        }
+
         // Fake phone app (refloat COMMAND_LCM_POLL simulator)
         public bool RefloatInstalled
         {
@@ -234,6 +274,7 @@ namespace BoardSimulator.ViewModels
         public ICommand ResetCommand { get; }
         public ICommand ButtonPressCommand { get; }
         public ICommand ButtonReleaseCommand { get; }
+        public ICommand SilenceAlarmCommand { get; }
 
         public MainViewModel()
         {
@@ -257,6 +298,7 @@ namespace BoardSimulator.ViewModels
             _alcm.HeadlightChanged += OnHeadlightChanged;
             _alcm.BuzzerTriggered += OnBuzzerTriggered;
             _alcm.DebugMessage += OnDebugMessage;
+            _alcm.PowerChanged += OnPowerChanged;
             _alcm.VescRequest += OnVescRequest; // ALCM → VESC requests
 
             // Subscribe to VESC responses
@@ -276,6 +318,7 @@ namespace BoardSimulator.ViewModels
             ResetCommand = new RelayCommand(Reset);
             ButtonPressCommand = new RelayCommand(() => IsButtonPressed = true);
             ButtonReleaseCommand = new RelayCommand(() => IsButtonPressed = false);
+            SilenceAlarmCommand = new RelayCommand(() => _buzzer.StopAlarm());
 
             // Initialize ALCM
             Initialize();
@@ -296,13 +339,13 @@ namespace BoardSimulator.ViewModels
                 
                 if (success)
                 {
-                    // Enable VESC if checkbox is checked
-                    if (VescEnabled)
-                    {
-                        System.Diagnostics.Debug.WriteLine("[MainViewModel] Enabling VESC simulator...");
-                        _vesc.Enable();
-                    }
-                    
+                    // NOTE: VescEnabled is no longer forced here - alcm_init()
+                    // above already fired OnPowerChanged(true) synchronously
+                    // (power_hw_init() turns PWR_EN on), which started the
+                    // ~5s boot delay. The VESC won't actually respond until
+                    // that elapses (or VescEnableOverride is set), same as
+                    // real hardware.
+
                     // Give VESC a moment to generate first message, then tick simulation to process it
                     System.Threading.Thread.Sleep(150); // Wait for at least one VESC message (100ms interval)
                     
@@ -383,6 +426,19 @@ namespace BoardSimulator.ViewModels
                 float deltaMs = 5.0f * TimeScale;
                 _alcm.Tick(deltaMs);
                 _tickCounter++;
+
+                // Count down the simulated VESC boot delay; once it elapses,
+                // auto-enable the VESC simulator (unless a tester has taken
+                // manual control via VescEnableOverride).
+                if (_vescBootRemainingMs > 0 && !VescEnableOverride)
+                {
+                    _vescBootRemainingMs -= deltaMs;
+                    if (_vescBootRemainingMs <= 0)
+                    {
+                        _vescBootRemainingMs = 0;
+                        VescEnabled = true;
+                    }
+                }
 
                 // Process all pending events
                 int eventsProcessed = 0;
@@ -506,6 +562,64 @@ namespace BoardSimulator.ViewModels
             _buzzer.SetTone(frequency);
         }
 
+        // Fires whenever power_hw_set_power() is called. Under normal
+        // firmware operation the VESC is powered up once at boot and only
+        // loses power once more, at shutdown - it should NEVER lose power
+        // any other way, since that leaves the rider unsupported. So any
+        // ON->OFF transition gets a loud, hard-to-miss alert here regardless
+        // of why it happened.
+        //
+        // NOTE: power_init() (power.c) deliberately calls
+        // power_hw_set_power(POWER_HW_OFF) once at startup to force the pin
+        // to a known state before board_mode transitions it ON a moment
+        // later - that first OFF is not a real event, so the alert only
+        // fires on a transition away from an already-powered state.
+        private void OnPowerChanged(bool enabled)
+        {
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainViewModel] VESC power changed: {(enabled ? "ON" : "OFF")}");
+
+                bool wasPowered = VescPowered;
+                VescPowered = enabled;
+
+                if (enabled)
+                {
+                    VescPowerAlert = false;
+                    _buzzer.StopAlarm();
+
+                    // Real VESC firmware takes ~5s to boot before it will
+                    // respond on the UART bus.
+                    _vescBootRemainingMs = VescBootDelayMs;
+                    if (!VescEnableOverride)
+                    {
+                        VescEnabled = false;
+                    }
+
+                    StatusText = "VESC power ON - waiting for VESC to boot...";
+                }
+                else
+                {
+                    _vescBootRemainingMs = 0;
+                    if (!VescEnableOverride)
+                    {
+                        VescEnabled = false;
+                    }
+
+                    if (wasPowered)
+                    {
+                        VescPowerAlert = true;
+                        _buzzer.StartAlarm();
+                        StatusText = "*** VESC POWER OFF - RIDER SAFETY HAZARD ***";
+                    }
+                    else
+                    {
+                        StatusText = "VESC power off (not yet powered on)";
+                    }
+                }
+            });
+        }
+
         private void OnDebugMessage(string message)
         {
             // Debug messages already visible in Debug output window
@@ -516,6 +630,7 @@ namespace BoardSimulator.ViewModels
         public void Dispose()
         {
             Stop();
+            _buzzer?.StopAlarm();
             _buzzer?.Dispose();
             _alcm?.Dispose();
         }

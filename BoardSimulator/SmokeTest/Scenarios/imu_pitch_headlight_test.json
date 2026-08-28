@@ -1,0 +1,64 @@
+{
+  // ─────────────────────────────────────────────────────────────────────────
+  // IMU Pitch / Headlight Regression Test
+  //
+  // Regression coverage for a 2026-08-26 fixed-point conversion bug: the
+  // pitch threshold in headlights.c compared millidegrees against a
+  // degrees-scale literal (60.0f), and separately, the radians->millidegrees
+  // conversion constant in vesc_serial.c overflowed int32_t at compile time.
+  // Both together meant any nonzero pitch (a few degrees) tripped the
+  // headlights-off threshold meant for ~60 degrees (near-vertical pitch).
+  //
+  // See scenario format reference in boot_test.json.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  "name": "IMU Pitch / Headlight Regression Test",
+  "description": "Confirms headlights stay on at a small pitch and only turn off near the real ~60 degree threshold.",
+
+  "vesc": {
+    "battery_voltage": 58.8
+  },
+
+  "steps": [
+
+    { "phase": "Boot sequence", "type": "await", "name": "Power latch engaged",
+      "event": "power", "where": { "enabled": true }, "timeout_ms": 500 },
+    { "type": "await", "name": "Boot LED animation",
+      "event": "status_led", "where": { "r_or_g_or_b_gt": 0 }, "timeout_ms": 1000 },
+    { "type": "await", "name": "VESC communication active",
+      "event": "vesc_request", "timeout_ms": 3000 },
+
+    { "phase": "Riding", "type": "inject", "name": "both footpads at 3.0V, RPM = 500",
+      "footpad_left_v": 3.0, "footpad_right_v": 3.0, "rpm": 500 },
+    { "type": "run_for", "name": "Let headlights settle on",
+      "duration_ms": 400,
+      "checks": [
+        { "name": "Headlights on before any pitch",
+          "assert_any": { "event": "headlight", "where": { "brightness_gt": 0 } } }
+      ]
+    },
+
+    { "phase": "Small pitch (should NOT disable headlights)",
+      "type": "inject", "name": "imu_pitch_deg = 5.0 (well under the ~60 degree threshold)",
+      "imu_pitch_deg": 5.0 },
+    { "type": "run_for", "name": "One VESC poll cycle at 5 degrees pitch",
+      "duration_ms": 400,
+      "checks": [
+        { "name": "Headlights stay on at 5 degrees pitch",
+          "assert_no": { "event": "headlight", "where": { "brightness_eq": 0 } } }
+      ]
+    },
+
+    { "phase": "Extreme pitch (SHOULD disable headlights)",
+      "type": "inject", "name": "imu_pitch_deg = 65.0 (past the ~60 degree threshold)",
+      "imu_pitch_deg": 65.0 },
+    { "type": "run_for", "name": "One VESC poll cycle at 65 degrees pitch",
+      "duration_ms": 400,
+      "checks": [
+        { "name": "Headlights turn off past 60 degrees pitch",
+          "assert_any": { "event": "headlight", "where": { "brightness_eq": 0 } } }
+      ]
+    }
+
+  ]
+}

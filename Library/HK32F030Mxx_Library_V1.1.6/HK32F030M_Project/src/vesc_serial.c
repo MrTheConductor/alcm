@@ -261,9 +261,17 @@ uint32_t buffer_get_uint32(const uint8_t *buffer)
 }
 
 #ifdef ENABLE_IMU_EVENTS
-// 180000/pi, as Q16.16 - converts Q16.16 radians directly to millidegrees
-// via a single fixed_mul16().
-#define RADIANS_TO_MILLIDEGREES_SCALE FIXED16(180000.0 / 3.14159265358979323846)
+// 180000/pi (~57295.78), rounded to a plain integer - deliberately NOT
+// wrapped in FIXED16(). radians_fixed16 below is already Q16.16 (pre-scaled
+// by 65536), so this constant only needs to carry the real degrees-per-
+// radian multiplier; the single ">>16" after multiplying by it undoes
+// radians_fixed16's own scaling and leaves a plain millidegree integer.
+// Wrapping it in FIXED16() (i.e. multiplying by another 65536) would try to
+// fit ~57295.78*65536 (~3.75 billion) into an int32_t - that overflow was a
+// real bug here: it silently wrapped to a large negative constant, so any
+// nonzero pitch/roll decoded as thousands of degrees and instantly tripped
+// any +-60 degree threshold check.
+#define RADIANS_TO_MILLIDEGREES_SCALE ((int32_t)(180000.0 / 3.14159265358979323846 + 0.5))
 
 /**
  * @brief Decodes a raw wire IEEE754 float (radians) directly into

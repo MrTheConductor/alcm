@@ -1,6 +1,7 @@
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using System;
+using System.Windows.Threading;
 
 namespace BoardSimulator.Services
 {
@@ -13,6 +14,14 @@ namespace BoardSimulator.Services
         private SignalGenerator? _signalGenerator;
         private bool _isPlaying;
         private ushort _currentFrequency;
+
+        // Two-tone siren used for the VESC-power-lost safety alert. This is
+        // independent of SetTone()'s normal single-frequency use so it can't
+        // be silently overridden by a routine ALCM buzzer event.
+        private DispatcherTimer? _alarmTimer;
+        private bool _alarmToneHigh;
+        private const ushort AlarmHighHz = 1800;
+        private const ushort AlarmLowHz = 900;
 
         public BuzzerService()
         {
@@ -76,8 +85,40 @@ namespace BoardSimulator.Services
             }
         }
 
+        /// <summary>
+        /// Start the VESC-power-lost safety siren (alternating two-tone alarm).
+        /// Keeps sounding until StopAlarm() is called - does not auto-silence.
+        /// </summary>
+        public void StartAlarm()
+        {
+            if (_alarmTimer != null)
+                return; // already sounding
+
+            _alarmToneHigh = true;
+            SetTone(AlarmHighHz);
+
+            _alarmTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+            _alarmTimer.Tick += (s, e) =>
+            {
+                _alarmToneHigh = !_alarmToneHigh;
+                SetTone(_alarmToneHigh ? AlarmHighHz : AlarmLowHz);
+            };
+            _alarmTimer.Start();
+        }
+
+        public void StopAlarm()
+        {
+            if (_alarmTimer == null)
+                return;
+
+            _alarmTimer.Stop();
+            _alarmTimer = null;
+            Stop();
+        }
+
         public void Dispose()
         {
+            StopAlarm();
             Stop();
             _waveOut?.Dispose();
             _waveOut = null;
