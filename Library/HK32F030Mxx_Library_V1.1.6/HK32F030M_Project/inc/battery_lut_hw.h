@@ -16,18 +16,25 @@
  * You should have received a copy of the GNU General Public License along
  * with ALCM. If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef _MOCK_EVENT_QUEUE_H_
-#define _MOCK_EVENT_QUEUE_H_
-#include <stdint.h>
-#include "event_queue.h"
 
-void event_queue_call_mocked_callback(event_type_t event, const event_data_t* data);
-void event_queue_test_bad_event(event_type_t expected, event_type_t actual, const event_data_t* data);
+/**
+ * @file battery_lut_hw.h
+ * @brief Hardware access for the patchable battery LUT block
+ */
+#ifndef BATTERY_LUT_HW_H
+#define BATTERY_LUT_HW_H
 
-// Validation functions
-int validate_footpads_state(const uintmax_t data, const uintmax_t check_data);
-int validate_board_mode_event_data(const uintmax_t data, const uintmax_t check_data);
-int validate_context_event_data(const uintmax_t data, const uintmax_t check_data);
-int validate_battery_level_event_data(const uintmax_t data, const uintmax_t check_data);
+#include "battery_lut.h"
+
+/**
+ * @brief Returns a pointer to the flash-resident battery LUT block.
+ *
+ * The block lives at a fixed address reserved by the linker scatter file
+ * (Project/MDK5/battery_lut.sct) so the battery_lut_patch.py tool can
+ * target it reliably across firmware versions. This function does not
+ * validate the block's contents - call battery_lut_validate_block() on
+ * the result before trusting it.
+ */
+const battery_lut_block_t *battery_lut_hw_get_block(void);
 
 #endif

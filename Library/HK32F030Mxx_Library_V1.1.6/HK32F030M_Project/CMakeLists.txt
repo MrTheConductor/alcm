@@ -27,6 +27,7 @@ endif()
 # Add the main source code
 add_library(alcm STATIC
     src/animations.c
+    src/battery_lut.c
     src/button_driver.c
     src/button_events.c
     src/buzzer.c

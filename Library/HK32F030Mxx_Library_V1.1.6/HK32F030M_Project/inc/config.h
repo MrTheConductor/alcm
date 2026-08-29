@@ -113,7 +113,7 @@
 #define BUZZER_ENABLE_DANGER 1 // Enable beeper at danger threshold
 
 //------------------------------------------------------------------------------
-// Battery configuration 
+// Battery configuration
 //------------------------------------------------------------------------------
 // There's a couple ways to get the battery level:
 // 1. Read the input voltage and calculate a value based on
@@ -121,11 +121,15 @@
 // 2. Read the battery level directly from the VESC based
 //    on their calculations.
 //
-// The first method is more accurate, but it requires
-// programming the number of cells and battery curve into
-// the firmware. The second method is less accurate, but
-// requires no modification from board to board.
-#undef ENABLE_VOLTAGE_MONITORING // Enable battery voltage monitoring
+// The first method is more accurate, but it requires a battery curve
+// calibrated to the rider's specific pack. Rather than a build-time choice,
+// this is now decided at runtime by battery_lut.c: if a rider has patched a
+// valid LUT into flash (see tools/battery_lut_patch), method 1 is used;
+// otherwise it falls back to method 2 (the VESC's own calculation)
+// unchanged. This flag just needs to stay enabled so the input voltage is
+// decoded and available for that decision - it's no longer an either/or
+// choice for the person building the firmware.
+#define ENABLE_VOLTAGE_MONITORING 1 // Enable battery voltage monitoring
 
 //------------------------------------------------------------------------------
 // IMU configuration

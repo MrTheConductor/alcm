@@ -142,3 +142,12 @@ int validate_context_event_data(const uintmax_t data, const uintmax_t check_data
     assert_int_equal(received_data->context, *expected_context);
     return 1;
 }
+
+int validate_battery_level_event_data(const uintmax_t data, const uintmax_t check_data)
+{
+    const event_data_t *received_data = (const event_data_t *)(uintptr_t)data;
+    const int16_t *expected_battery_level = (const int16_t *)(uintptr_t)check_data;
+
+    assert_int_equal(received_data->battery_level, *expected_battery_level);
+    return 1;
+}

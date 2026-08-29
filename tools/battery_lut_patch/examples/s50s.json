@@ -1,0 +1,16 @@
+{
+  "_description": "Samsung INR21700-50S. Transcribed from floatwheel's own CheckPowerLevel() battVoltages_mv table (floatwheel/LCM/Code/App/task.c, #ifdef S50S). Seen paired with BATTERY_STRING=20 (ADV2 board) in floatwheel's own build defines - use --cell-count to match your actual pack, don't assume 20S.",
+  "breakpoints": [
+    {"cell_mv": 4200, "percent": 100.0},
+    {"cell_mv": 4075, "percent": 90.0},
+    {"cell_mv": 4040, "percent": 80.0},
+    {"cell_mv": 3900, "percent": 70.0},
+    {"cell_mv": 3820, "percent": 60.0},
+    {"cell_mv": 3735, "percent": 50.0},
+    {"cell_mv": 3640, "percent": 40.0},
+    {"cell_mv": 3520, "percent": 30.0},
+    {"cell_mv": 3375, "percent": 20.0},
+    {"cell_mv": 3160, "percent": 10.0},
+    {"cell_mv": 3000, "percent": 0.0}
+  ]
+}
