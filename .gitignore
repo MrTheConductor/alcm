@@ -15,3 +15,6 @@ __pycache__/**
 !Project/MDK5/
 !Project/MDK5/ALCM.uvoptx
 !Project/MDK5/ALCM.uvprojx
+
+#
+.claude/**
