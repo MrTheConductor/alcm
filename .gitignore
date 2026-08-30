@@ -4,6 +4,12 @@ Testing
 build
 StatusBarSimulator
 **.orig
+**.hex
+
+# Python (tools/battery_lut_patch/)
+__pycache__/**
+*.pyc
+.pytest_cache/
 
 # Except
 !Project/MDK5/

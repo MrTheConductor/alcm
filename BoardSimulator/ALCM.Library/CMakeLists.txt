@@ -31,6 +31,7 @@ include_directories(
 # ALCM application logic source files (NOT *_hw.c, NOT main.c, NOT hk32f030m_it.c, NOT tim1.c, NOT eeprom.c, NOT ws2812.s)
 set(ALCM_SOURCES
     ${ALCM_SRC}/animations.c
+    ${ALCM_SRC}/battery_lut.c
     ${ALCM_SRC}/board_mode.c
     ${ALCM_SRC}/button_driver.c
     ${ALCM_SRC}/button_events.c
@@ -70,6 +71,7 @@ set(HW_LAYER_SOURCES
     hw_impl/footpads_hw.c
     hw_impl/button_driver_hw.c
     hw_impl/vesc_serial_hw.c
+    hw_impl/battery_lut_hw.c
     hw_impl/buzzer_hw.c
     hw_impl/power_hw.c
     hw_impl/interrupts_hw.c

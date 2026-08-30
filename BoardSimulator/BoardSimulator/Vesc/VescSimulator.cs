@@ -13,6 +13,12 @@ namespace BoardSimulator.Vesc
         public float TempFet { get; set; } = 25.0f;
         public float TempMotor { get; set; } = 25.0f;
         public float AvgMotorCurrent { get; set; } = 0.0f;
+        // Sent as the selective response's total input/battery current
+        // (positive while discharging) - feeds ALCM's IR-drop compensation
+        // when a battery LUT block with r_int_milliohms is patched in. Not
+        // yet exposed as a GUI control (BoardSimulator's battery_lut_hw
+        // stub always reports "unpatched", so there's no patched block to
+        // test compensation against yet either - see BoardSimulator/ALCM.Library/hw_impl/battery_lut_hw.c).
         public float AvgInputCurrent { get; set; } = 0.0f;
         public float DutyCycle { get; set; } = 0.0f;
         public int Rpm { get; set; } = 0;
@@ -142,8 +148,9 @@ namespace BoardSimulator.Vesc
                 float batteryPercent = ((InputVoltage - 40.0f) / (67.2f - 40.0f)) * 100.0f;
                 batteryPercent = Math.Max(0.0f, Math.Min(100.0f, batteryPercent));
 
-                // Generate SELECTIVE response (16-byte payload, not full 64-byte response)
+                // Generate SELECTIVE response (20-byte payload, not full 64-byte response)
                 byte[] response = VescProtocol.GenerateSelectiveValuesMessage(
+                    current: AvgInputCurrent,
                     dutyCycle: DutyCycle,
                     rpm: Rpm,
                     inputVoltage: InputVoltage,
@@ -151,7 +158,7 @@ namespace BoardSimulator.Vesc
                     faultCode: FaultCode
                 );
 
-                System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM response: {response.Length} bytes (RPM={Rpm}, V={InputVoltage:F1}V, Batt={batteryPercent:F1}%, Duty={DutyCycle:F2})");
+                System.Diagnostics.Debug.WriteLine($"[VescSimulator] VESC → ALCM response: {response.Length} bytes (RPM={Rpm}, V={InputVoltage:F1}V, I={AvgInputCurrent:F1}A, Batt={batteryPercent:F1}%, Duty={DutyCycle:F2})");
 
                 ResponseReady?.Invoke(response);
             }

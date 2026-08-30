@@ -12,12 +12,15 @@ Usage:
     battery_lut_patch.py patch --input ALCM.hex --output ALCM_patched.hex --curve my_pack.json
     battery_lut_patch.py verify --input ALCM_patched.hex
     battery_lut_patch.py clear --input ALCM_patched.hex --output ALCM_default.hex
+    battery_lut_patch.py flash --input ALCM_patched.hex
 """
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
+import flash
 import intel_hex
 import lut
 from constants import BATTERY_LUT_FLASH_ADDR, BATTERY_LUT_MAX_BREAKPOINTS, RESERVED_REGION_SIZE
@@ -97,6 +100,33 @@ def cmd_clear(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_flash(args: argparse.Namespace) -> int:
+    if not os.path.isfile(args.input):
+        print(f"error: file not found: {args.input}", file=sys.stderr)
+        return 1
+    if not args.input.lower().endswith(".hex"):
+        print(f"error: expected a .hex file, got {args.input}", file=sys.stderr)
+        return 1
+
+    try:
+        flash.check_prerequisites()
+    except flash.FlashError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        print("Erasing the old firmware...")
+        flash.erase()
+        print(f"Flashing {args.input}...")
+        flash.load(args.input)
+    except flash.FlashError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    print("Done - check the pyocd output above to confirm it succeeded. Float on!")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -119,6 +149,10 @@ def main(argv: list[str] | None = None) -> int:
     p_clear.add_argument("--input", required=True)
     p_clear.add_argument("--output", required=True)
     p_clear.set_defaults(func=cmd_clear)
+
+    p_flash = sub.add_parser("flash", help="erase and flash a .hex file to the board (pyocd + ST-Link)")
+    p_flash.add_argument("--input", required=True, help="the .hex file to flash (patched or stock)")
+    p_flash.set_defaults(func=cmd_flash)
 
     args = parser.parse_args(argv)
     return args.func(args)

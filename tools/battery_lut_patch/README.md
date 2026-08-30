@@ -9,7 +9,8 @@ If you never run this tool, battery percentage comes from the VESC's own
 calculation, unchanged - that's the default, and it's what you get if you
 just flash the stock `.hex`.
 
-Pure standard library, no dependencies to install, works on Windows/Mac/Linux.
+`patch`/`verify`/`clear` are pure standard library, no dependencies to
+install, works on Windows/Mac/Linux. `flash` needs `pyocd` (see below).
 
 ## Known cell types
 
@@ -50,9 +51,34 @@ python battery_lut_patch.py verify --input ALCM_patched.hex
 
 # Revert to the VESC's own calculation
 python battery_lut_patch.py clear --input ALCM_patched.hex --output ALCM_default.hex
+
+# Flash whatever --output produced (or any stock .hex) to the board
+python battery_lut_patch.py flash --input ALCM_patched.hex
 ```
 
-Flash whatever `--output` produced the same way you'd flash the stock `.hex`.
+## Flashing
+
+Keil's own "Download" button only flashes the *current project's* build
+output - it has no idea a separately-patched `.hex` exists, and won't
+error if you click it after patching, it'll just silently reflash the
+unpatched firmware. `flash` sidesteps µVision entirely: it's a Python port
+of floatwheel's own `flash.bat`/`flash.sh` (`floatwheel/LCM/`), using
+[pyocd](https://pyocd.io/) over the same ST-Link/SWD setup ALCM's Keil
+project is already configured for, with the HK32-specific flash algorithm
+(`HKMicroChip.HK32F030xMxx_DFP.1.0.17.pack`, shipped alongside this tool)
+that plain ST-Link tools like STM32CubeProgrammer don't know about since
+this isn't a genuine ST part.
+
+Requires `pyocd` and the ST-Link USB drivers:
+
+```sh
+python -m pip install --upgrade pyocd==0.34.3
+```
+
+(driver install links: https://www.st.com/en/development-tools/stsw-link004.html)
+
+`flash` always erases before loading, matching the reference scripts'
+behavior - there's no partial/incremental flash option.
 
 ## IR-drop (load-sag) compensation
 
