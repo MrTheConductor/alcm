@@ -1,0 +1,16 @@
+{
+  "_description": "Sony/Murata US18650VTC6. Transcribed from floatwheel's own CheckPowerLevel() battVoltages_mv table (floatwheel/LCM/Code/App/task.c, #ifdef VTC6). Seen paired with BATTERY_STRING=15 (PintV and XRV boards) in floatwheel's own build defines - use --cell-count to match your actual pack, don't assume 15S.",
+  "breakpoints": [
+    {"cell_mv": 4200, "percent": 100.0},
+    {"cell_mv": 4064, "percent": 90.0},
+    {"cell_mv": 4015, "percent": 80.0},
+    {"cell_mv": 3895, "percent": 70.0},
+    {"cell_mv": 3821, "percent": 60.0},
+    {"cell_mv": 3745, "percent": 50.0},
+    {"cell_mv": 3655, "percent": 40.0},
+    {"cell_mv": 3559, "percent": 30.0},
+    {"cell_mv": 3459, "percent": 20.0},
+    {"cell_mv": 3292, "percent": 10.0},
+    {"cell_mv": 3000, "percent": 0.0}
+  ]
+}

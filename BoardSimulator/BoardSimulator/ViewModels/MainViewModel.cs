@@ -25,7 +25,16 @@ namespace BoardSimulator.ViewModels
         // Input properties
         private double _leftFootpadVoltage;
         private double _rightFootpadVoltage;
+        private bool _leftFootpadPressed;
+        private bool _rightFootpadPressed;
+        // >2.5V is footpads.c's FOOTPADS_THRESHOLD_ADC; 3.0V matches the
+        // convention already used in SmokeTest scenarios (boot_test.json).
+        private const float FootpadPressedVoltage = 3.0f;
         private double _batteryVoltage = 58.8;
+        private double _batteryVoltageMin = 40.0;
+        private double _batteryVoltageMax = 67.2;
+        private double _dutyCyclePercent;
+        private double _currentAmps;
         private double _motorRpm;
         private double _imuPitch;
         private double _imuRoll;
@@ -71,6 +80,35 @@ namespace BoardSimulator.ViewModels
             }
         }
 
+        // Riders press pads on or off - they don't dial in a specific ADC
+        // voltage - so this is the primary way to drive footpad state from
+        // the UI. LeftFootpadVoltage/RightFootpadVoltage above still exist
+        // underneath for anyone who wants to test at/near the exact
+        // threshold voltage directly.
+        public bool LeftFootpadPressed
+        {
+            get => _leftFootpadPressed;
+            set
+            {
+                if (SetProperty(ref _leftFootpadPressed, value))
+                {
+                    LeftFootpadVoltage = value ? FootpadPressedVoltage : 0.0;
+                }
+            }
+        }
+
+        public bool RightFootpadPressed
+        {
+            get => _rightFootpadPressed;
+            set
+            {
+                if (SetProperty(ref _rightFootpadPressed, value))
+                {
+                    RightFootpadVoltage = value ? FootpadPressedVoltage : 0.0;
+                }
+            }
+        }
+
         public double BatteryVoltage
         {
             get => _batteryVoltage;
@@ -79,6 +117,76 @@ namespace BoardSimulator.ViewModels
                 if (SetProperty(ref _batteryVoltage, value))
                 {
                     _vesc.InputVoltage = (float)value;
+                }
+            }
+        }
+
+        // Bounds for the Battery slider - editable so a tester can match
+        // whatever pack configuration (series count/chemistry) they're
+        // testing against, rather than being stuck with one hardcoded range.
+        public double BatteryVoltageMin
+        {
+            get => _batteryVoltageMin;
+            set
+            {
+                if (value >= _batteryVoltageMax)
+                {
+                    return; // keep min strictly below max
+                }
+                if (SetProperty(ref _batteryVoltageMin, value) && BatteryVoltage < value)
+                {
+                    BatteryVoltage = value;
+                }
+            }
+        }
+
+        public double BatteryVoltageMax
+        {
+            get => _batteryVoltageMax;
+            set
+            {
+                if (value <= _batteryVoltageMin)
+                {
+                    return; // keep max strictly above min
+                }
+                if (SetProperty(ref _batteryVoltageMax, value) && BatteryVoltage > value)
+                {
+                    BatteryVoltage = value;
+                }
+            }
+        }
+
+        // Signed like the real wire value (tenths of a percent, +-100.0%) -
+        // negative is regen/braking duty. Drives board_mode.c's
+        // WARNING/DANGER riding submodes at DUTY_CYCLE_WARNING_THRESHOLD/
+        // DUTY_CYCLE_DANGER_THRESHOLD (80%/90%, config.h).
+        public double DutyCyclePercent
+        {
+            get => _dutyCyclePercent;
+            set
+            {
+                if (SetProperty(ref _dutyCyclePercent, value))
+                {
+                    _vesc.DutyCycle = (float)value;
+                }
+            }
+        }
+
+        // Total battery current, positive while discharging - sent as the
+        // VESC response's current_in_tot. Feeds ALCM's IR-drop (load-sag)
+        // compensation when a battery LUT block with r_int_milliohms is
+        // patched in (battery_lut_hw_get_block() always reports "unpatched"
+        // in this simulator right now, so there's nothing to compensate
+        // against yet - see BoardSimulator/ALCM.Library/hw_impl/battery_lut_hw.c -
+        // but the value still flows through to ALCM either way).
+        public double CurrentAmps
+        {
+            get => _currentAmps;
+            set
+            {
+                if (SetProperty(ref _currentAmps, value))
+                {
+                    _vesc.AvgInputCurrent = (float)value;
                 }
             }
         }
@@ -276,6 +384,17 @@ namespace BoardSimulator.ViewModels
         public ICommand ButtonReleaseCommand { get; }
         public ICommand SilenceAlarmCommand { get; }
 
+        // Quick Actions - reliably land in each board_mode.c riding
+        // submode, using its actual threshold constants (config.h), rather
+        // than a tester having to hand-tune sliders to values that may or
+        // may not cross the real thresholds.
+        public ICommand ApplyIdlePresetCommand { get; }
+        public ICommand ApplyStoppedPresetCommand { get; }
+        public ICommand ApplyRidingSlowPresetCommand { get; }
+        public ICommand ApplyRidingNormalPresetCommand { get; }
+        public ICommand ApplyDutyWarningPresetCommand { get; }
+        public ICommand ApplyDutyDangerPresetCommand { get; }
+
         public MainViewModel()
         {
             _alcm = new AlcmWrapper();
@@ -320,8 +439,29 @@ namespace BoardSimulator.ViewModels
             ButtonReleaseCommand = new RelayCommand(() => IsButtonPressed = false);
             SilenceAlarmCommand = new RelayCommand(() => _buzzer.StopAlarm());
 
+            // board_mode.c riding submode thresholds (config.h):
+            //   STOPPED_RPM_THRESHOLD = 20, SLOW_RPM_THRESHOLD = 2000
+            //   DUTY_CYCLE_WARNING_THRESHOLD = 800, DUTY_CYCLE_DANGER_THRESHOLD = 900 (tenths of a %)
+            // Presets sit comfortably on the correct side of each threshold
+            // (not right at the edge, since hysteresis_init() gives each one
+            // a reset band below the raw threshold).
+            ApplyIdlePresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: false, rpm: 0, dutyPercent: 0));
+            ApplyStoppedPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 0, dutyPercent: 0));
+            ApplyRidingSlowPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 500, dutyPercent: 15));
+            ApplyRidingNormalPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 2500, dutyPercent: 40));
+            ApplyDutyWarningPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 2500, dutyPercent: 85));
+            ApplyDutyDangerPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 2500, dutyPercent: 95));
+
             // Initialize ALCM
             Initialize();
+        }
+
+        private void ApplyRidingPreset(bool padsOn, double rpm, double dutyPercent)
+        {
+            LeftFootpadPressed = padsOn;
+            RightFootpadPressed = padsOn;
+            MotorRpm = rpm;
+            DutyCyclePercent = dutyPercent;
         }
 
         private void Initialize()
@@ -403,10 +543,13 @@ namespace BoardSimulator.ViewModels
         {
             Stop();
             
-            // Reset inputs
-            LeftFootpadVoltage = 0;
-            RightFootpadVoltage = 0;
+            // Reset inputs (BatteryVoltageMin/Max are a tester-chosen pack
+            // config, not ride state - left untouched)
+            LeftFootpadPressed = false;
+            RightFootpadPressed = false;
             BatteryVoltage = 58.8;
+            DutyCyclePercent = 0;
+            CurrentAmps = 0;
             MotorRpm = 0;
             ImuPitch = 0;
             ImuRoll = 0;

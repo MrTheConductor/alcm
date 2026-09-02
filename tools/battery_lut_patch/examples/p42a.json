@@ -1,0 +1,16 @@
+{
+  "_description": "LG INR21700-P42A. Transcribed from floatwheel's own CheckPowerLevel() battVoltages_mv table (floatwheel/LCM/Code/App/task.c, #ifdef P42A). Seen paired with BOTH BATTERY_STRING=18 (GTV board) and BATTERY_STRING=20 (ADV board) in floatwheel's own build defines - this chemistry alone doesn't tell you the series count, use --cell-count to match your actual pack.",
+  "breakpoints": [
+    {"cell_mv": 4200, "percent": 100.0},
+    {"cell_mv": 4065, "percent": 90.0},
+    {"cell_mv": 3938, "percent": 80.0},
+    {"cell_mv": 3854, "percent": 70.0},
+    {"cell_mv": 3776, "percent": 60.0},
+    {"cell_mv": 3695, "percent": 50.0},
+    {"cell_mv": 3618, "percent": 40.0},
+    {"cell_mv": 3543, "percent": 30.0},
+    {"cell_mv": 3460, "percent": 20.0},
+    {"cell_mv": 3342, "percent": 10.0},
+    {"cell_mv": 3000, "percent": 0.0}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "_description": "Reliance RS50 21700 5000mAh. Used in Floatwheel Atom (22S1P).",
+  "breakpoints": [
+    {"cell_mv": 4200, "percent": 100.0},
+    {"cell_mv": 4055, "percent": 90.0},
+    {"cell_mv": 4002, "percent": 80.0},
+    {"cell_mv": 3888, "percent": 70.0},
+    {"cell_mv": 3790, "percent": 60.0},
+    {"cell_mv": 3672, "percent": 50.0},
+    {"cell_mv": 3532, "percent": 40.0},
+    {"cell_mv": 3388, "percent": 30.0},
+    {"cell_mv": 3198, "percent": 20.0},
+    {"cell_mv": 2989, "percent": 10.0},
+    {"cell_mv": 2700, "percent": 0.0}
+  ]
+}

@@ -100,6 +100,56 @@
             </Style.Triggers>
         </Style>
         
+        <!-- Footpad Toggle Style - riders press pads on/off, not dial in a
+             voltage, so these read as buttons: dark/unpressed, green/pressed -->
+        <Style x:Key="FootpadToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#2D2D30" />
+            <Setter Property="Foreground" Value="#CCCCCC" />
+            <Setter Property="BorderBrush" Value="#3F3F46" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Padding" Value="10,18" />
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#2ECC40" />
+                    <Setter Property="Foreground" Value="#000000" />
+                    <Setter Property="BorderBrush" Value="#2ECC40" />
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="#00D7FF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Compact numeric entry (Battery min/max) -->
+        <Style x:Key="CompactNumberBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="#1A1A1A" />
+            <Setter Property="Foreground" Value="#00D7FF" />
+            <Setter Property="BorderBrush" Value="#3F3F46" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="Width" Value="55" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
         <!-- Momentary Button Style (for power button) -->
         <Style x:Key="MomentaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#2D2D30" />
@@ -233,13 +283,15 @@
                        Margin="10,0,0,0" />
         </StackPanel>
 
-        <!-- Main Content -->
-        <Grid Grid.Row="3">
+        <!-- Main Content - scrollable, since the Inputs column has grown
+             taller than a lot of screens/window sizes can show at once -->
+        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            
+
             <!-- Left Column - LEDs -->
             <StackPanel Grid.Column="0" Margin="0,0,20,0">
                 <!-- Status LEDs - 10 RGB LED Array with Diffuser (Glowing Bar) -->
@@ -361,43 +413,18 @@
                     
                     <!-- Footpads -->
                     <TextBlock Text="Footpads" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,10,0,10" />
-                    
-                    <Grid Margin="0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Left Pad:" Style="{StaticResource LabelStyle}" />
-                        <Slider Grid.Column="1" 
-                                Minimum="0" 
-                                Maximum="3.3" 
-                                Value="{Binding LeftFootpadVoltage}" 
-                                TickFrequency="0.1"
-                                Style="{StaticResource SliderStyle}" />
-                        <TextBlock Grid.Column="2" 
-                                   Text="{Binding LeftFootpadVoltage, StringFormat={}{0:F2} V}" 
-                                   Style="{StaticResource ValueLabelStyle}" />
-                    </Grid>
-                    
-                    <Grid Margin="0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="Right Pad:" Style="{StaticResource LabelStyle}" />
-                        <Slider Grid.Column="1" 
-                                Minimum="0" 
-                                Maximum="3.3" 
-                                Value="{Binding RightFootpadVoltage}" 
-                                TickFrequency="0.1"
-                                Style="{StaticResource SliderStyle}" />
-                        <TextBlock Grid.Column="2" 
-                                   Text="{Binding RightFootpadVoltage, StringFormat={}{0:F2} V}" 
-                                   Style="{StaticResource ValueLabelStyle}" />
-                    </Grid>
-                    
+
+                    <UniformGrid Columns="2" Margin="0,5">
+                        <ToggleButton Content="Left Pad"
+                                      IsChecked="{Binding LeftFootpadPressed}"
+                                      Style="{StaticResource FootpadToggleStyle}"
+                                      ToolTip="Toggles above/below footpads.c's FOOTPADS_THRESHOLD_ADC (>2.5V)" />
+                        <ToggleButton Content="Right Pad"
+                                      IsChecked="{Binding RightFootpadPressed}"
+                                      Style="{StaticResource FootpadToggleStyle}"
+                                      ToolTip="Toggles above/below footpads.c's FOOTPADS_THRESHOLD_ADC (>2.5V)" />
+                    </UniformGrid>
+
                     <!-- VESC Data -->
                     <TextBlock Text="VESC Data" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
                     
@@ -424,6 +451,27 @@
                         </TextBlock>
                     </CheckBox>
                     
+                    <!-- Battery voltage range - editable so the slider matches
+                         whatever pack (series count/chemistry) is under test -->
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Range:" Style="{StaticResource LabelStyle}" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding BatteryVoltageMin, StringFormat={}{0:F1}, UpdateSourceTrigger=LostFocus}"
+                                 Style="{StaticResource CompactNumberBoxStyle}"
+                                 ToolTip="Slider minimum (V)" />
+                        <TextBlock Grid.Column="2" Text="to" Style="{StaticResource LabelStyle}" Margin="8,0" />
+                        <TextBox Grid.Column="3"
+                                 Text="{Binding BatteryVoltageMax, StringFormat={}{0:F1}, UpdateSourceTrigger=LostFocus}"
+                                 Style="{StaticResource CompactNumberBoxStyle}"
+                                 ToolTip="Slider maximum (V)" />
+                    </Grid>
+
                     <Grid Margin="0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -431,18 +479,18 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Battery:" Style="{StaticResource LabelStyle}" />
-                        <Slider Grid.Column="1" 
-                                Minimum="40" 
-                                Maximum="67.2" 
-                                Value="{Binding BatteryVoltage}" 
+                        <Slider Grid.Column="1"
+                                Minimum="{Binding BatteryVoltageMin}"
+                                Maximum="{Binding BatteryVoltageMax}"
+                                Value="{Binding BatteryVoltage}"
                                 TickFrequency="0.1"
                                 IsEnabled="{Binding VescEnabled}"
                                 Style="{StaticResource SliderStyle}" />
-                        <TextBlock Grid.Column="2" 
-                                   Text="{Binding BatteryVoltage, StringFormat={}{0:F1} V}" 
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding BatteryVoltage, StringFormat={}{0:F1} V}"
                                    Style="{StaticResource ValueLabelStyle}" />
                     </Grid>
-                    
+
                     <Grid Margin="0,5">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -450,15 +498,55 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Motor RPM:" Style="{StaticResource LabelStyle}" />
-                        <Slider Grid.Column="1" 
-                                Minimum="-2000" 
-                                Maximum="2000" 
-                                Value="{Binding MotorRpm}" 
+                        <Slider Grid.Column="1"
+                                Minimum="-2000"
+                                Maximum="2000"
+                                Value="{Binding MotorRpm}"
                                 TickFrequency="10"
                                 IsEnabled="{Binding VescEnabled}"
                                 Style="{StaticResource SliderStyle}" />
                         <TextBlock Grid.Column="2"
                                    Text="{Binding MotorRpm, StringFormat={}{0:F0}}"
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Duty Cycle:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1"
+                                Minimum="-100"
+                                Maximum="100"
+                                Value="{Binding DutyCyclePercent}"
+                                TickFrequency="1"
+                                IsEnabled="{Binding VescEnabled}"
+                                Style="{StaticResource SliderStyle}"
+                                ToolTip="Warning >=80%, Danger >=90% (config.h DUTY_CYCLE_WARNING/DANGER_THRESHOLD)" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding DutyCyclePercent, StringFormat={}{0:F0}%}"
+                                   Style="{StaticResource ValueLabelStyle}" />
+                    </Grid>
+
+                    <Grid Margin="0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Current:" Style="{StaticResource LabelStyle}" />
+                        <Slider Grid.Column="1"
+                                Minimum="-60"
+                                Maximum="60"
+                                Value="{Binding CurrentAmps}"
+                                TickFrequency="1"
+                                IsEnabled="{Binding VescEnabled}"
+                                Style="{StaticResource SliderStyle}"
+                                ToolTip="Battery current (positive = discharging) - feeds IR-drop compensation" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding CurrentAmps, StringFormat={}{0:F0} A}"
                                    Style="{StaticResource ValueLabelStyle}" />
                     </Grid>
 
@@ -573,21 +661,43 @@
                                    Style="{StaticResource ValueLabelStyle}" />
                     </Grid>
 
-                    <!-- Quick Presets -->
+                    <!-- Quick Actions - each one reliably lands in a specific
+                         board_mode.c riding submode (pads + RPM + duty set
+                         together), instead of hand-tuning sliders and hoping
+                         they land on the right side of a threshold. -->
                     <TextBlock Text="Quick Actions" FontSize="16" FontWeight="SemiBold" Foreground="#CCCCCC" Margin="0,20,0,10" />
-                    
+
                     <UniformGrid Columns="2" Margin="0,5">
-                        <Button Content="Both Pads ON" 
-                                Click="BothPadsOn_Click"
-                                Style="{StaticResource ButtonStyle}" />
-                        <Button Content="Both Pads OFF" 
-                                Click="BothPadsOff_Click"
-                                Style="{StaticResource ButtonStyle}" />
+                        <Button Content="Idle (pads up)"
+                                Command="{Binding ApplyIdlePresetCommand}"
+                                Style="{StaticResource ButtonStyle}"
+                                ToolTip="Pads up, RPM 0, duty 0%" />
+                        <Button Content="Stopped"
+                                Command="{Binding ApplyStoppedPresetCommand}"
+                                Style="{StaticResource ButtonStyle}"
+                                ToolTip="Pads down, RPM 0 - BOARD_SUBMODE_RIDING_STOPPED (RPM &lt; STOPPED_RPM_THRESHOLD, 20)" />
+                        <Button Content="Riding Slow"
+                                Command="{Binding ApplyRidingSlowPresetCommand}"
+                                Style="{StaticResource ButtonStyle}"
+                                ToolTip="RPM 500 - BOARD_SUBMODE_RIDING_SLOW (20 &lt;= RPM &lt; SLOW_RPM_THRESHOLD, 2000)" />
+                        <Button Content="Riding Normal"
+                                Command="{Binding ApplyRidingNormalPresetCommand}"
+                                Style="{StaticResource ButtonStyle}"
+                                ToolTip="RPM 2500, duty 40% - BOARD_SUBMODE_RIDING_NORMAL" />
+                        <Button Content="Duty Warning"
+                                Command="{Binding ApplyDutyWarningPresetCommand}"
+                                Style="{StaticResource ButtonStyle}"
+                                ToolTip="Duty 85% - BOARD_SUBMODE_RIDING_WARNING (>= DUTY_CYCLE_WARNING_THRESHOLD, 80%)" />
+                        <Button Content="Duty Danger"
+                                Command="{Binding ApplyDutyDangerPresetCommand}"
+                                Style="{StaticResource ButtonStyle}"
+                                ToolTip="Duty 95% - BOARD_SUBMODE_RIDING_DANGER (>= DUTY_CYCLE_DANGER_THRESHOLD, 90%)" />
                     </UniformGrid>
                 </StackPanel>
             </Border>
         </Grid>
-        
+        </ScrollViewer>
+
         <!-- Status Bar -->
         <Border Grid.Row="4"
                 Background="#007ACC" 

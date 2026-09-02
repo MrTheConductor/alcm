@@ -363,16 +363,16 @@
             </VariousControls>
           </Aads>
           <LDads>
-            <umfTarg>1</umfTarg>
+            <umfTarg>0</umfTarg>
             <Ropi>0</Ropi>
             <Rwpi>0</Rwpi>
             <noStLib>0</noStLib>
             <RepFail>1</RepFail>
-            <useFile>0</useFile>
+            <useFile>1</useFile>
             <TextAddressRange>0x08000000</TextAddressRange>
             <DataAddressRange>0x20000000</DataAddressRange>
             <pXoBase></pXoBase>
-            <ScatterFile></ScatterFile>
+            <ScatterFile>.\battery_lut.sct</ScatterFile>
             <IncludeLibs></IncludeLibs>
             <IncludeLibsPath></IncludeLibsPath>
             <Misc></Misc>
@@ -504,6 +504,16 @@
               <FileName>vesc_serial_hw.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M_Project\src\vesc_serial_hw.c</FilePath>
+            </File>
+            <File>
+              <FileName>battery_lut.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M_Project\src\battery_lut.c</FilePath>
+            </File>
+            <File>
+              <FileName>battery_lut_hw.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\Library\HK32F030Mxx_Library_V1.1.6\HK32F030M_Project\src\battery_lut_hw.c</FilePath>
             </File>
             <File>
               <FileName>ring_buffer.c</FileName>

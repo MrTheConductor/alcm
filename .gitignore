@@ -4,8 +4,17 @@ Testing
 build
 StatusBarSimulator
 **.orig
+**.hex
+
+# Python (tools/battery_lut_patch/)
+__pycache__/**
+*.pyc
+.pytest_cache/
 
 # Except
 !Project/MDK5/
 !Project/MDK5/ALCM.uvoptx
 !Project/MDK5/ALCM.uvprojx
+
+#
+.claude/**

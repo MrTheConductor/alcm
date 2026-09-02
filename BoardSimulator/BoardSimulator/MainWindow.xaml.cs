@@ -14,24 +14,6 @@ namespace BoardSimulator
             InitializeComponent();
         }
 
-        private void BothPadsOn_Click(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is MainViewModel vm)
-            {
-                vm.LeftFootpadVoltage = 3.3;
-                vm.RightFootpadVoltage = 3.3;
-            }
-        }
-
-        private void BothPadsOff_Click(object sender, RoutedEventArgs e)
-        {
-            if (DataContext is MainViewModel vm)
-            {
-                vm.LeftFootpadVoltage = 0.0;
-                vm.RightFootpadVoltage = 0.0;
-            }
-        }
-
         private void PowerButton_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (DataContext is MainViewModel vm)

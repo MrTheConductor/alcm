@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, Mitchell White <mitchell.n.white@gmail.com>
+ * Copyright (c) 2024-2026, Mitchell White <mitchell.n.white@gmail.com>
  *
  * This file is part of Advanced LCM (ALCM) project.
  *
@@ -21,39 +21,9 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include "vesc_serial.h"
+#include "battery_lut_hw.h"
 
-lcm_status_t vesc_serial_init(void) {
-    function_called();
-    return LCM_SUCCESS;
-}
-
-ring_buffer_t *vesc_serial_get_rx_buffer(void) {
-    return (ring_buffer_t *)mock();
-}
-
-int16_t vesc_serial_get_duty_cycle(void) {
-    return (int16_t)mock();
-}
-
-int32_t vesc_serial_get_rpm(void) {
-    return (int32_t)mock();
-}
-
-#if defined(ENABLE_VOLTAGE_MONITORING)
-int16_t vesc_serial_get_input_voltage(void) {
-    return (int16_t)mock();
-}
-#endif
-
-int16_t vesc_serial_get_battery_level(void) {
-    return (int16_t)mock();
-}
-
-uint8_t vesc_serial_get_fault(void) {
-    return (uint8_t)mock();
-}
-
-int32_t vesc_serial_get_imu_roll(void) {
-    return (int32_t)mock();
+const battery_lut_block_t *battery_lut_hw_get_block(void)
+{
+    return (const battery_lut_block_t *)mock();
 }

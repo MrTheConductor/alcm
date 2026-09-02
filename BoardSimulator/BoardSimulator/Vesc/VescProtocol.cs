@@ -87,10 +87,14 @@ namespace BoardSimulator.Vesc
 
         /// <summary>
         /// Generates a COMM_GET_VALUES_SETUP_SELECTIVE response packet (command 0x33)
-        /// This is what ALCM actually requests with its selective polling
-        /// 16-byte payload format matching COMM_GET_VALUES_SETUP_SELECTIVE_MASK 0x101b0
+        /// This is what ALCM actually requests with its selective polling.
+        /// 20-byte payload format matching COMM_GET_VALUES_SETUP_SELECTIVE_MASK
+        /// 0x101b8 - field order follows the mask's bit order (current_in_tot,
+        /// bit 3, comes before duty cycle, bit 4), matching bldc's own
+        /// COMM_GET_VALUES_SETUP_SELECTIVE handler.
         /// </summary>
         public static byte[] GenerateSelectiveValuesMessage(
+            float current,
             float dutyCycle,
             int rpm,
             float inputVoltage,
@@ -104,13 +108,27 @@ namespace BoardSimulator.Vesc
             writer.Write((byte)0x33); // COMM_GET_VALUES_SETUP_SELECTIVE
 
             // Write mask (uint32) - must match COMM_GET_VALUES_SETUP_SELECTIVE_MASK
-            WriteInt32(writer, 0x101b0);
+            WriteInt32(writer, 0x101b8);
+
+            // Write total input/battery current (int32, pre-scaled by 100 -
+            // hundredths of an amp. bldc's buffer_append_float32(..., 1e2, ...)
+            // is fixed-point despite the name - see the RPM comment below -
+            // so this must be WriteInt32, not a real IEEE754 float32.)
+            WriteInt32(writer, (int)(current * 100.0f));
 
             // Write duty cycle (float16, scale 10.0)
             WriteFloat16(writer, dutyCycle, 10.0f);
 
-            // Write RPM (float32, scale 1.0)
-            WriteFloat32(writer, rpm);
+            // Write RPM (int32, scale 1.0). NOTE: this was previously
+            // WriteFloat32(writer, rpm), which encodes the IEEE754 bit
+            // pattern of the float value of rpm - firmware decodes this
+            // field with buffer_get_int32() (a plain integer read), so that
+            // sent garbage for any nonzero RPM. bldc's own
+            // buffer_append_float32(..., mc_interface_get_rpm(), 1e0, ...)
+            // is fixed-point internally (scale*value cast to int32), not a
+            // real float encode, despite the function name - same "float in
+            // name only" pattern as duty_cycle/battery_level on this wire.
+            WriteInt32(writer, rpm);
 
             // Write input voltage (float16, scale 10.0)
             WriteFloat16(writer, inputVoltage, 10.0f);
@@ -123,10 +141,10 @@ namespace BoardSimulator.Vesc
 
             byte[] payload = ms.ToArray();
 
-            // Verify payload is exactly 16 bytes as expected
-            if (payload.Length != 16) // Should be 16 bytes total
+            // Verify payload is exactly 20 bytes as expected
+            if (payload.Length != 20)
             {
-                throw new InvalidOperationException($"Selective values payload must be 16 bytes, got {payload.Length}");
+                throw new InvalidOperationException($"Selective values payload must be 20 bytes, got {payload.Length}");
             }
 
             // Build packet with framing and CRC

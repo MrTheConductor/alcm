@@ -92,6 +92,7 @@ add_executable(test_alcm
     mocks/mock_status_leds_hw.c
     mocks/mock_timer.c
     mocks/mock_vesc_serial_hw.c
+    mocks/mock_battery_lut_hw.c
     mocks/mock_settings.c
     mocks/mock_status_leds.c
     alcm_main.c

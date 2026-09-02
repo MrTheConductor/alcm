@@ -1,0 +1,16 @@
+{
+  "_description": "DG40 21700 cell. Transcribed from floatwheel's own CheckPowerLevel() battVoltages_mv table (floatwheel/LCM/Code/App/task.c, #ifdef DG40). Seen paired with BATTERY_STRING=20 (ADV board) in floatwheel's own build defines - use --cell-count to match your actual pack, don't assume 20S.",
+  "breakpoints": [
+    {"cell_mv": 4200, "percent": 100.0},
+    {"cell_mv": 4047, "percent": 90.0},
+    {"cell_mv": 3944, "percent": 80.0},
+    {"cell_mv": 3867, "percent": 70.0},
+    {"cell_mv": 3799, "percent": 60.0},
+    {"cell_mv": 3717, "percent": 50.0},
+    {"cell_mv": 3600, "percent": 40.0},
+    {"cell_mv": 3498, "percent": 30.0},
+    {"cell_mv": 3381, "percent": 20.0},
+    {"cell_mv": 3237, "percent": 10.0},
+    {"cell_mv": 3000, "percent": 0.0}
+  ]
+}

@@ -16,18 +16,9 @@
  * You should have received a copy of the GNU General Public License along
  * with ALCM. If not, see <https://www.gnu.org/licenses/>.
  */
-#ifndef _MOCK_EVENT_QUEUE_H_
-#define _MOCK_EVENT_QUEUE_H_
-#include <stdint.h>
-#include "event_queue.h"
+#include "battery_lut_hw.h"
 
-void event_queue_call_mocked_callback(event_type_t event, const event_data_t* data);
-void event_queue_test_bad_event(event_type_t expected, event_type_t actual, const event_data_t* data);
-
-// Validation functions
-int validate_footpads_state(const uintmax_t data, const uintmax_t check_data);
-int validate_board_mode_event_data(const uintmax_t data, const uintmax_t check_data);
-int validate_context_event_data(const uintmax_t data, const uintmax_t check_data);
-int validate_battery_level_event_data(const uintmax_t data, const uintmax_t check_data);
-
-#endif
+const battery_lut_block_t *battery_lut_hw_get_block(void)
+{
+    return (const battery_lut_block_t *)BATTERY_LUT_FLASH_ADDR;
+}

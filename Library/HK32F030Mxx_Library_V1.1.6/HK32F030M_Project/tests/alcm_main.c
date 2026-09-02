@@ -27,6 +27,7 @@
 #include "test_buzzer.h"
 #include "test_footpads.h"
 #include "test_power.h"
+#include "test_battery_lut.h"
 #include "test_vesc_serial.h"
 #include "test_ring_buffer.h"
 #include "test_crc_ccitt.h"
@@ -41,6 +42,7 @@ int main(void)
     result += cmocka_run_group_tests_name("Power Tests", power_tests, NULL, NULL);
     result += cmocka_run_group_tests_name("Buzzer Tests", buzzer_tests, NULL, NULL);
     result += cmocka_run_group_tests_name("Footpad Tests", footpads_tests, NULL, NULL);
+    result += cmocka_run_group_tests_name("Battery LUT Test", battery_lut_tests, NULL, NULL);
     result += cmocka_run_group_tests_name("VESC Serial Test", vesc_serial_tests, NULL, NULL);
     result += cmocka_run_group_tests_name("Ring Buffer Test", ring_buffer_tests, NULL, NULL);
     result += cmocka_run_group_tests_name("CRC CCITT Test", crc16_ccitt_tests, NULL, NULL);

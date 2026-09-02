@@ -27,6 +27,9 @@
 #include "interrupts.h"
 #include "tiny_math.h"
 #include "function_generator.h"
+#if defined(ENABLE_VOLTAGE_MONITORING)
+#include "battery_lut.h"
+#endif
 #ifdef ENABLE_APP_INTEGRATION
 #include "settings.h"
 #include "command_processor.h"
@@ -34,8 +37,8 @@
 
 // Values from VESC datatypes.h
 #define COMM_GET_VALUES_SETUP_SELECTIVE 51
-#define COMM_GET_VALUES_SETUP_SELECTIVE_RESPONSE_LENGTH 16
-#define COMM_GET_VALUES_SETUP_SELECTIVE_MASK 0x101b0
+#define COMM_GET_VALUES_SETUP_SELECTIVE_RESPONSE_LENGTH 20
+#define COMM_GET_VALUES_SETUP_SELECTIVE_MASK 0x101b8
 
 #ifdef ENABLE_IMU_EVENTS
 #define COMM_GET_IMU_DATA 65
@@ -81,6 +84,9 @@
 
 typedef struct
 {
+#if defined(ENABLE_VOLTAGE_MONITORING)
+    int32_t current_centiamps; // Hundredths of an amp, positive while discharging
+#endif
     int16_t duty_cycle;  // Tenths of a percent
     int32_t rpm;
 #if defined(ENABLE_VOLTAGE_MONITORING)
@@ -107,6 +113,15 @@ static uint8_t vesc_serial_outstaning_packet_count = 0;
 static vesc_serial_callback_t vesc_serial_callback = NULL;
 #ifdef ENABLE_IMU_EVENTS
 static comm_get_imu_data_t comm_get_imu_data = {0};
+#endif
+#if defined(ENABLE_VOLTAGE_MONITORING)
+// Shift-based EMA (no division/float) smoothing the voltage fed to the
+// battery LUT lookup - without this, a locally-computed battery_level can
+// be steppier than the VESC's own filtered value, and
+// EVENT_BATTERY_LEVEL_CHANGED has no debounce (status_leds.c re-triggers
+// its animation/refresh on every firing).
+static int16_t vesc_serial_filtered_voltage = 0;
+static bool_t vesc_serial_filtered_voltage_init = false;
 #endif
 #ifdef ENABLE_APP_INTEGRATION
 static uint8_t headlight_remote_baseline = LCM_BASELINE_UNSET;
@@ -146,6 +161,13 @@ lcm_status_t vesc_serial_init(void)
     vesc_alive = false;
 
     vesc_serial_hw_init(SERIAL_BAUDRATE);
+
+#if defined(ENABLE_VOLTAGE_MONITORING)
+    // Validate a patched battery LUT once at boot; falls back to the
+    // VESC's own battery_level automatically if none is present/valid.
+    battery_lut_init();
+    vesc_serial_filtered_voltage_init = false;
+#endif
 
     // Subscribe to the VESC serial data event
     SUBSCRIBE_EVENT(vesc_serial, EVENT_SERIAL_DATA_RX, rx);
@@ -417,11 +439,18 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
         return;
     }
 
+#if defined(ENABLE_VOLTAGE_MONITORING)
+    // Battery current, needed for IR-drop compensation below. Decode and
+    // clamp first since the compensated voltage depends on it.
+    values.current_centiamps = buffer_get_int32(&payload[5]);
+    values.current_centiamps = CLAMP(values.current_centiamps, -20000, 20000); // +-200A
+#endif
+
     // Copy the payload into the temporary comm_get_values_setup_selective
     // struct. The wire value is already tenths of a percent (an int16,
     // previously divided by 10.0f into a float and multiplied back out
     // downstream) - decode it directly.
-    values.duty_cycle = buffer_get_int16(&payload[5]);
+    values.duty_cycle = buffer_get_int16(&payload[9]);
 
     // Coerce the duty cycle to a valid range (previously a no-op bug: CLAMP
     // used as a bare statement discarded its result instead of assigning it).
@@ -430,18 +459,58 @@ void process_comm_get_values_setup_selective(const uint8_t *payload, uint8_t pac
     // RPM is a genuine integer quantity in the VESC protocol (scale 1.0) -
     // decode it directly instead of round-tripping through
     // buffer_get_float32(), which only ever divided by 1.0f.
-    values.rpm = buffer_get_int32(&payload[7]);
+    values.rpm = buffer_get_int32(&payload[11]);
 
 #if defined(ENABLE_VOLTAGE_MONITORING)
-    values.input_voltage = buffer_get_int16(&payload[11]);
+    values.input_voltage = buffer_get_int16(&payload[15]);
+
+    // The VESC can report voltage spikes/dropouts outside a sane range;
+    // coerce before it feeds the compensation/EMA/LUT below (previously
+    // unclamped).
+    values.input_voltage = CLAMP(values.input_voltage, 0, 2000);
+
+    // A valid LUT block also carries an (optional, may be 0/disabled)
+    // r_int_milliohms - compensate the terminal voltage back toward
+    // open-circuit before it's smoothed/looked up, so a hill climb's
+    // current draw doesn't read as a big SoC drop that "heals" the
+    // instant the load lets up.
+    int16_t voltage_for_lut = values.input_voltage;
+    if (battery_lut_is_valid())
+    {
+        voltage_for_lut = (int16_t)(values.input_voltage +
+                                     battery_lut_get_voltage_compensation(values.current_centiamps));
+    }
+
+    if (!vesc_serial_filtered_voltage_init)
+    {
+        vesc_serial_filtered_voltage = voltage_for_lut;
+        vesc_serial_filtered_voltage_init = true;
+    }
+    else
+    {
+        vesc_serial_filtered_voltage +=
+            (voltage_for_lut - vesc_serial_filtered_voltage) >> 2;
+    }
 #endif
-    values.battery_level = buffer_get_int16(&payload[13]);
+
+    values.battery_level = buffer_get_int16(&payload[17]);
 
     // The VESC can return battery levels outside of the 0-100% range,
     // so we need to coerce it to a valid range.
     values.battery_level = CLAMP(values.battery_level, 0, 1000);
 
-    values.fault = payload[15];
+#if defined(ENABLE_VOLTAGE_MONITORING)
+    // A patched, valid LUT block overrides the VESC's own calculation with
+    // one calibrated to the rider's actual pack chemistry. Unpatched (the
+    // default) or invalid falls straight through to the VESC's value
+    // above, unchanged.
+    if (battery_lut_is_valid())
+    {
+        values.battery_level = battery_lut_get_percent((uint16_t)vesc_serial_filtered_voltage);
+    }
+#endif
+
+    values.fault = payload[19];
 
     // For each field, check if the value has changed
     if (values.duty_cycle != comm_get_values_setup_selective.duty_cycle)
@@ -757,14 +826,20 @@ TIMER_CALLBACK(vesc_serial, tx)
      * byte 0: start byte (0x02)
      * byte 1: packet length (0x05)
      * byte 2: command (0x33)
-     * bytes 3-6: mask: 0x101b0  (u32)
+     * bytes 3-6: mask: 0x101b8  (u32)
+     *   float 32: battery current, total (1<<3) - needed for IR-drop compensation
      *   float 16: duty cycle now (1<<4)
      *   int 32: RPM (1<<5)
      *   float 16: input voltage (1<<7)
      *   float 16: battery level (1<<8)
      *   int 8: fault (1<<16)
-     * bytes 7-8 precomputed crc-16-ccitt (0x41e6)
+     * bytes 7-8 precomputed crc-16-ccitt (0xc0ee)
      * byte 9: end byte (0x03)
+     *
+     * Response payload field order follows the mask's bit order (current
+     * before duty cycle, since bit 3 < bit 4) - see
+     * COMM_GET_VALUES_SETUP_SELECTIVE_RESPONSE_LENGTH's parsing in
+     * process_comm_get_values_setup_selective().
      *
      * COMM_GET_IMU_DATA (optional):
      * byte 0: start byte (0x02)
@@ -788,26 +863,26 @@ TIMER_CALLBACK(vesc_serial, tx)
 #if defined(ENABLE_IMU_EVENTS) && defined(ENABLE_APP_INTEGRATION)
 #define BYTE_LENGTH 26U
     uint8_t buffer[BYTE_LENGTH] = {
-        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb8, 0xc0, 0xee, 0x03,
         0x02, 0x03, 0x41, 0x00, 0x03, 0x1a, 0xfe, 0x03,
         0x02, 0x03, 0x24, 0x65, 0x18, 0x3d, 0xe0, 0x03
     };
 #elif defined(ENABLE_IMU_EVENTS)
 #define BYTE_LENGTH 18U
     uint8_t buffer[BYTE_LENGTH] = {
-        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb8, 0xc0, 0xee, 0x03,
         0x02, 0x03, 0x41, 0x00, 0x03, 0x1a, 0xfe, 0x03
     };
 #elif defined(ENABLE_APP_INTEGRATION)
 #define BYTE_LENGTH 18U
     uint8_t buffer[BYTE_LENGTH] = {
-        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03,
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb8, 0xc0, 0xee, 0x03,
         0x02, 0x03, 0x24, 0x65, 0x18, 0x3d, 0xe0, 0x03
     };
 #else
 #define BYTE_LENGTH 10U
     uint8_t buffer[BYTE_LENGTH] = {
-        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb0, 0x41, 0xe6, 0x03
+        0x02, 0x05, 0x33, 0x00, 0x01, 0x01, 0xb8, 0xc0, 0xee, 0x03
     };
 #endif
 

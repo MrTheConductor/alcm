@@ -27,6 +27,9 @@
 #include "vesc_serial.h"
 #include "settings.h"
 #include "command_processor.h"
+#include "battery_lut.h"
+#include "battery_lut_hw.h"
+#include "test_battery_lut.h" // reuses test_battery_lut_make_valid_block()
 
 int vesc_serial_setup(void **state)
 {
@@ -39,6 +42,12 @@ int vesc_serial_setup(void **state)
     // Expect init to call the vesc_serial_hw_init function and subscribe
     // to the vesc serial data event
     expect_any(vesc_serial_hw_init, baud);
+    // No LUT block patched in for these tests - vesc_serial_init() should
+    // fall back to the VESC's own battery_level, unchanged. Tests that
+    // specifically want a valid LUT (see
+    // test_vesc_serial_battery_lut_overrides_battery_level below) call
+    // vesc_serial_init() directly instead of this shared setup.
+    will_return(battery_lut_hw_get_block, NULL);
     expect_value(subscribe_event, event, EVENT_SERIAL_DATA_RX);
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_BOARD_MODE_CHANGED);
@@ -318,6 +327,143 @@ void test_vesc_serial_comm_setup_wrong_size(void **state)
 }
 
 /**
+ * @brief Exercises a successful COMM_GET_VALUES_SETUP_SELECTIVE decode with
+ * no LUT patched in - the VESC's own battery_level must pass through
+ * unchanged. This is the default/happy-path case for every rider who never
+ * runs tools/battery_lut_patch.
+ */
+void test_vesc_serial_comm_setup_decodes_values(void **state)
+{
+    (void)state; // Unused
+    ring_buffer_t *rx_buffer = vesc_serial_get_rx_buffer();
+
+    // current=500 (5.00A), duty_cycle=250 (25.0%), rpm=1000,
+    // input_voltage=390 (39.0V), battery_level=999 (99.9%, the VESC's own
+    // raw value), fault=0. current isn't used when the LUT is invalid
+    // (the default here, per vesc_serial_setup) but is included with a
+    // real nonzero value to prove it decodes without disturbing anything
+    // else.
+    uint8_t payload[] = {0x33, 0x00, 0x01, 0x01, 0xb8,
+                          0x00, 0x00, 0x01, 0xf4,
+                          0x00, 0xfa,
+                          0x00, 0x00, 0x03, 0xe8,
+                          0x01, 0x86,
+                          0x03, 0xe7,
+                          0x00};
+
+    expect_value(event_queue_push, event, EVENT_VESC_ALIVE);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_DUTY_CYCLE_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_RPM_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_VOLTAGE_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_BATTERY_LEVEL_CHANGED);
+    int16_t expected_battery_level = 999;
+    expect_check(event_queue_push, data, validate_battery_level_event_data,
+                 (uintmax_t)&expected_battery_level);
+
+    ring_buffer_push(rx_buffer, 0x02);
+    ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+    for (size_t i = 0; i < sizeof(payload); i++)
+    {
+        ring_buffer_push(rx_buffer, payload[i]);
+    }
+    ring_buffer_push(rx_buffer, 0x68);
+    ring_buffer_push(rx_buffer, 0xb6);
+    ring_buffer_push(rx_buffer, 0x03);
+
+    event_data_t rx_event_data = {0};
+    event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+
+    assert_int_equal(999, vesc_serial_get_battery_level());
+    assert_true(ring_buffer_is_empty(rx_buffer));
+}
+
+/**
+ * @brief With a valid, patched LUT block, the published battery_level must
+ * come from the LUT's interpolation of the IR-compensated,
+ * EMA-smoothed input voltage - not the VESC's own raw battery_level on
+ * the wire, and not the raw (uncompensated) voltage either.
+ *
+ * Uses its own inline setup (rather than vesc_serial_setup) because it
+ * needs to supply a valid block to battery_lut_hw_get_block() during
+ * vesc_serial_init(), instead of the shared setup's NULL default.
+ */
+void test_vesc_serial_battery_lut_overrides_battery_level(void **state)
+{
+    (void)state; // Unused
+
+    event_queue_init();
+    timer_init();
+
+    static battery_lut_block_t block; // static: outlives this function
+    block = test_battery_lut_make_valid_block(); // r_int_milliohms = 100 (0.1 ohm)
+
+    expect_any(vesc_serial_hw_init, baud);
+    will_return(battery_lut_hw_get_block, &block); // consumed by battery_lut_init()
+    expect_value(subscribe_event, event, EVENT_SERIAL_DATA_RX);
+    expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_BOARD_MODE_CHANGED);
+    expect_any(subscribe_event, callback);
+    vesc_serial_init();
+
+    // battery_lut_get_voltage_compensation() and battery_lut_get_percent()
+    // each re-read the block on every call (no RAM caching - see
+    // battery_lut.c), so the packet-processing below needs one queued
+    // value per call, in addition to the one already consumed by init.
+    will_return(battery_lut_hw_get_block, &block); // compensation
+    will_return(battery_lut_hw_get_block, &block); // LUT lookup
+
+    ring_buffer_t *rx_buffer = vesc_serial_get_rx_buffer();
+
+    // raw battery_level=999 (must NOT be what publishes), current=1000
+    // (10.00A discharge), raw input_voltage=380 (38.0V). At 0.1 ohm, 10A
+    // compensates +1.0V -> 39.0V, which the LUT (see
+    // test_battery_lut_make_valid_block) interpolates to 70.0% (700
+    // tenths) on a 10S pack. The raw, uncompensated 38.0V would instead
+    // interpolate to 60.0% - asserting 700 here only passes if
+    // compensation actually ran.
+    uint8_t payload[] = {0x33, 0x00, 0x01, 0x01, 0xb8,
+                          0x00, 0x00, 0x03, 0xe8,
+                          0x00, 0xfa,
+                          0x00, 0x00, 0x03, 0xe8,
+                          0x01, 0x7c,
+                          0x03, 0xe7,
+                          0x00};
+
+    expect_value(event_queue_push, event, EVENT_VESC_ALIVE);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_DUTY_CYCLE_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_RPM_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_VOLTAGE_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_BATTERY_LEVEL_CHANGED);
+    int16_t expected_battery_level = 700;
+    expect_check(event_queue_push, data, validate_battery_level_event_data,
+                 (uintmax_t)&expected_battery_level);
+
+    ring_buffer_push(rx_buffer, 0x02);
+    ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+    for (size_t i = 0; i < sizeof(payload); i++)
+    {
+        ring_buffer_push(rx_buffer, payload[i]);
+    }
+    ring_buffer_push(rx_buffer, 0x34);
+    ring_buffer_push(rx_buffer, 0xba);
+    ring_buffer_push(rx_buffer, 0x03);
+
+    event_data_t rx_event_data = {0};
+    event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+
+    assert_int_equal(700, vesc_serial_get_battery_level());
+    assert_true(ring_buffer_is_empty(rx_buffer));
+}
+
+/**
  * @brief Exercises refloat's COMMAND_LCM_POLL app-integration relay.
  *
  * Covers: baseline establishment on the first poll reply (no apply),
@@ -498,6 +644,8 @@ const struct CMUnitTest vesc_serial_tests[] = {
     cmocka_unit_test_setup(test_vesc_serial_crc_invalid, vesc_serial_setup),
     cmocka_unit_test_setup(test_vesc_serial_unknown_command, vesc_serial_setup),
     cmocka_unit_test_setup(test_vesc_serial_comm_setup_wrong_size, vesc_serial_setup),
+    cmocka_unit_test_setup(test_vesc_serial_comm_setup_decodes_values, vesc_serial_setup),
+    cmocka_unit_test(test_vesc_serial_battery_lut_overrides_battery_level),
     cmocka_unit_test_setup(test_vesc_serial_app_integration, vesc_serial_setup),
 };
 
