@@ -104,11 +104,15 @@ lcm_status_t status_leds_init(void)
 
         // Subscribe to events that trigger status changes
         //
-        // Note: We don't subscribe to RPM or duty cycle here because they are
-        // handled by the board state machine.
+        // Note: We don't subscribe to RPM here because it's handled by the
+        // board state machine. Duty cycle is subscribed directly (rather
+        // than only reacting to the board-mode-driven danger submode) so the
+        // duty cycle gauge can update live as the value changes, not just on
+        // submode transitions.
         SUBSCRIBE_EVENT(status_leds, EVENT_BOARD_MODE_CHANGED, state_changed);
         SUBSCRIBE_EVENT(status_leds, EVENT_FOOTPAD_CHANGED, state_changed);
         SUBSCRIBE_EVENT(status_leds, EVENT_BATTERY_LEVEL_CHANGED, state_changed);
+        SUBSCRIBE_EVENT(status_leds, EVENT_DUTY_CYCLE_CHANGED, state_changed);
         SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_TOGGLE_LIGHTS, command);
         SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_TOGGLE_BEEPER, command);
         SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_CONTEXT_CHANGED, command);
@@ -295,11 +299,39 @@ uint16_t status_leds_start_animation_option(animation_option_t option)
 }
 
 /**
- * @brief Displays the current battery level on the status LEDs
+ * @brief Fills the status LEDs as a proportional bar for a tenths-of-a-percent
+ * value, in the given color.
  *
- * This function uses the first 10 status LEDs to display the current battery
- * level. The LEDs are divided into 10 equal parts, with each part representing
- * 10% of the battery capacity.
+ * This function uses the first 10 status LEDs as a bar graph. The LEDs are
+ * divided into 10 equal parts, with each part representing 10% of the value's
+ * range. Shared by the battery gauge and the duty cycle gauge.
+ *
+ * @param level_tenths The value to display, tenths of a percent
+ *                      (0-1000 = 0.0%-100.0%)
+ * @param color The color to fill the bar with
+ */
+static void display_gauge_bar(int16_t level_tenths, const status_leds_color_t *color)
+{
+    // Map tenths-of-a-percent [0,1000] to an LED index [-1,9]: same as
+    // (level_tenths/10.0f/10.0f) - 1.0f in the original float formula, done
+    // as one Q16.16 scale (divisor 100 is a compile-time constant, so this
+    // is a free multiply-by-reciprocal).
+    fixed16_t init_mu = (fixed16_t)(((int32_t)level_tenths * 65536) / 100) - FIXED16(1.0);
+    stop_animation();
+
+    scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_FILL, COLOR_MODE_RGB,
+                         500, // scan speed in milliseconds
+                         FIXED16(0.0), // (not-used)
+                         FIXED16(0.0), // (not-used)
+                         0, // (not-used)
+                         SCAN_START_MU, SCAN_END_SINGLE_TICK,
+                         init_mu,
+                         color // RGB color
+    );
+}
+
+/**
+ * @brief Displays the current battery level on the status LEDs
  *
  * @param battery_level The current battery level, tenths of a percent
  *                       (0-1000 = 0.0%-100.0%)
@@ -333,28 +365,32 @@ void display_battery(int16_t battery_level)
     else
     {
         const status_leds_color_t *color = &colors.white;
-        // Map battery tenths-of-a-percent [0,1000] to an LED index [-1,9]:
-        // same as (battery_level/10.0f/10.0f) - 1.0f in the original float
-        // formula, done as one Q16.16 scale (divisor 100 is a compile-time
-        // constant, so this is a free multiply-by-reciprocal).
-        fixed16_t init_mu = (fixed16_t)(((int32_t)battery_level * 65536) / 100) - FIXED16(1.0);
-        stop_animation();
 
         if (battery_level <= LOW_BATTERY_THRESHOLD)
         {
             color = &colors.orange;
         }
 
-        scan_animation_setup(status_leds_buffer, SCAN_DIRECTION_LEFT_TO_RIGHT_FILL, COLOR_MODE_RGB,
-                             500, // scan speed in milliseconds
-                             FIXED16(0.0), // (not-used)
-                             FIXED16(0.0), // (not-used)
-                             0, // (not-used)
-                             SCAN_START_MU, SCAN_END_SINGLE_TICK,
-                             init_mu,
-                             color // RGB color
-        );
+        display_gauge_bar(battery_level, color);
     }
+}
+
+/**
+ * @brief Displays the current duty cycle on the status LEDs as a proportional
+ * bar, matching the battery gauge's 1-LED-per-10% scale.
+ *
+ * Below #DUTY_CYCLE_DANGER_THRESHOLD the bar is green; at or above it, the
+ * bar turns red to match the buzzer's danger alarm.
+ *
+ * @param duty_cycle The current duty cycle, tenths of a percent
+ *                    (0-1000 = 0.0%-100.0%)
+ */
+void display_duty_cycle(int16_t duty_cycle)
+{
+    const status_leds_color_t *color =
+        (duty_cycle >= DUTY_CYCLE_DANGER_THRESHOLD) ? &colors.red : &colors.green;
+
+    display_gauge_bar(duty_cycle, color);
 }
 
 /**
@@ -648,11 +684,6 @@ static void status_leds_handle_solid_red_pulse(event_type_t event, uint32_t peri
     }
 }
 
-void status_leds_handle_riding_danger(event_type_t event)
-{
-    status_leds_handle_solid_red_pulse(event, 250);
-}
-
 #ifdef ENABLE_APP_INTEGRATION
 /**
  * @brief Handles the disabled (locked) status LEDs based on the given event.
@@ -669,39 +700,6 @@ void status_leds_handle_disabled(event_type_t event)
     status_leds_handle_solid_red_pulse(event, DISABLED_BREATH_PERIOD);
 }
 #endif
-
-/**
- * @brief Handles the riding warning status LEDs based on the given event.
- *
- * This function sets up the LED animation when the board mode changes.
- *
- * @param event The event type that triggers the LED status change.
- *
- * Supported events:
- * - EVENT_BOARD_MODE_CHANGED: Sets up an HSV gradient mirror animation with sine brightness mode.
- */
-void status_leds_handle_riding_warning(event_type_t event)
-{
-    switch (event)
-    {
-    case EVENT_BOARD_MODE_CHANGED:
-        fill_animation_setup(status_leds_buffer, COLOR_MODE_HSV_SQUARE, BRIGHTNESS_MODE_SINE,
-                             FILL_MODE_HSV_GRADIENT_MIRROR, 0U, STATUS_LEDS_COUNT - 1U,
-                             FIXED16(10.0),  // hue min
-                             FIXED16(40.0),  // hue max
-                             350, // color change speed
-                             FIXED16(0.7),   // brightness min
-                             FIXED16(1.0),   // brightness max
-                             175, // brightness change speed
-                             0U,
-                             NULL // RGB color (ignored)
-        );
-        break;
-    default:
-        // Do nothing
-        break;
-    }
-}
 
 /**
  * @brief Handles the status LEDs display when riding slowly.
@@ -803,29 +801,40 @@ void update_display(event_type_t event)
         }
         break;
     case BOARD_MODE_RIDING:
-        switch (board_submode_get())
+    {
+        int16_t duty_cycle = vesc_serial_get_duty_cycle();
+
+        // Duty cycle takes priority over the RPM-driven submodes below: once
+        // it crosses the gauge threshold, show a proportional bar (green,
+        // turning red at the danger threshold) instead of the normal
+        // battery/ride display. BOARD_SUBMODE_RIDING_DANGER's hysteresis
+        // floor is always above the gauge threshold, so that submode is
+        // always covered by this branch.
+        if (duty_cycle >= DUTY_CYCLE_GAUGE_THRESHOLD)
         {
-        case BOARD_SUBMODE_RIDING_DANGER:
-            status_leds_handle_riding_danger(event);
-            break;
-        case BOARD_SUBMODE_RIDING_WARNING:
-            status_leds_handle_riding_warning(event);
-            break;
-        case BOARD_SUBMODE_RIDING_NORMAL:
-            status_leds_handle_riding_normal(event);
-            break;
-        case BOARD_SUBMODE_RIDING_SLOW:
-            status_leds_handle_riding_slow(event);
-            break;
-        case BOARD_SUBMODE_RIDING_STOPPED:
-            // Riding stopped is the same behavior as idle active
-            status_leds_handle_idle_active(event);
-            break;
-        default:
-            fault(EMERGENCY_FAULT_INVALID_STATE);
-            break;
+            display_duty_cycle(duty_cycle);
+        }
+        else
+        {
+            switch (board_submode_get())
+            {
+            case BOARD_SUBMODE_RIDING_NORMAL:
+                status_leds_handle_riding_normal(event);
+                break;
+            case BOARD_SUBMODE_RIDING_SLOW:
+                status_leds_handle_riding_slow(event);
+                break;
+            case BOARD_SUBMODE_RIDING_STOPPED:
+                // Riding stopped is the same behavior as idle active
+                status_leds_handle_idle_active(event);
+                break;
+            default:
+                fault(EMERGENCY_FAULT_INVALID_STATE);
+                break;
+            }
         }
         break;
+    }
     case BOARD_MODE_CHARGING:
         // I need an ADV to implement this ;)
         break;

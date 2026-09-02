@@ -157,9 +157,10 @@ namespace BoardSimulator.ViewModels
         }
 
         // Signed like the real wire value (tenths of a percent, +-100.0%) -
-        // negative is regen/braking duty. Drives board_mode.c's
-        // WARNING/DANGER riding submodes at DUTY_CYCLE_WARNING_THRESHOLD/
-        // DUTY_CYCLE_DANGER_THRESHOLD (80%/90%, config.h).
+        // negative is regen/braking duty. Drives status_leds.c's proportional
+        // duty cycle gauge at DUTY_CYCLE_GAUGE_THRESHOLD (70%) and
+        // board_mode.c's BOARD_SUBMODE_RIDING_DANGER (alarm) at
+        // DUTY_CYCLE_DANGER_THRESHOLD (90%, config.h).
         public double DutyCyclePercent
         {
             get => _dutyCyclePercent;
@@ -392,7 +393,7 @@ namespace BoardSimulator.ViewModels
         public ICommand ApplyStoppedPresetCommand { get; }
         public ICommand ApplyRidingSlowPresetCommand { get; }
         public ICommand ApplyRidingNormalPresetCommand { get; }
-        public ICommand ApplyDutyWarningPresetCommand { get; }
+        public ICommand ApplyDutyGaugePresetCommand { get; }
         public ICommand ApplyDutyDangerPresetCommand { get; }
 
         public MainViewModel()
@@ -441,7 +442,12 @@ namespace BoardSimulator.ViewModels
 
             // board_mode.c riding submode thresholds (config.h):
             //   STOPPED_RPM_THRESHOLD = 20, SLOW_RPM_THRESHOLD = 2000
-            //   DUTY_CYCLE_WARNING_THRESHOLD = 800, DUTY_CYCLE_DANGER_THRESHOLD = 900 (tenths of a %)
+            //   DUTY_CYCLE_DANGER_THRESHOLD = 900 (tenths of a %)
+            // status_leds.c duty cycle gauge threshold (config.h):
+            //   DUTY_CYCLE_GAUGE_THRESHOLD = 700 (tenths of a %) - a continuous
+            //   display-layer threshold, not a board_mode submode, so the
+            //   "gauge" preset below doesn't correspond to a distinct submode
+            //   the way the danger preset does.
             // Presets sit comfortably on the correct side of each threshold
             // (not right at the edge, since hysteresis_init() gives each one
             // a reset band below the raw threshold).
@@ -449,7 +455,7 @@ namespace BoardSimulator.ViewModels
             ApplyStoppedPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 0, dutyPercent: 0));
             ApplyRidingSlowPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 500, dutyPercent: 15));
             ApplyRidingNormalPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 2500, dutyPercent: 40));
-            ApplyDutyWarningPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 2500, dutyPercent: 85));
+            ApplyDutyGaugePresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 2500, dutyPercent: 75));
             ApplyDutyDangerPresetCommand = new RelayCommand(() => ApplyRidingPreset(padsOn: true, rpm: 2500, dutyPercent: 95));
 
             // Initialize ALCM

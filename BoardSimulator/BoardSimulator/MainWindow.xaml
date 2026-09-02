@@ -499,12 +499,13 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="Motor RPM:" Style="{StaticResource LabelStyle}" />
                         <Slider Grid.Column="1"
-                                Minimum="-2000"
-                                Maximum="2000"
+                                Minimum="-11400"
+                                Maximum="11400"
                                 Value="{Binding MotorRpm}"
-                                TickFrequency="10"
+                                TickFrequency="100"
                                 IsEnabled="{Binding VescEnabled}"
-                                Style="{StaticResource SliderStyle}" />
+                                Style="{StaticResource SliderStyle}"
+                                ToolTip="+-11400 eRPM =~ +-20 MPH, scaled from config.h's SLOW_RPM_THRESHOLD comment (2000 eRPM =~ 3-4 MPH); no wheel/pole-pair calibration exists in this repo to compute an exact figure" />
                         <TextBlock Grid.Column="2"
                                    Text="{Binding MotorRpm, StringFormat={}{0:F0}}"
                                    Style="{StaticResource ValueLabelStyle}" />
@@ -684,14 +685,14 @@
                                 Command="{Binding ApplyRidingNormalPresetCommand}"
                                 Style="{StaticResource ButtonStyle}"
                                 ToolTip="RPM 2500, duty 40% - BOARD_SUBMODE_RIDING_NORMAL" />
-                        <Button Content="Duty Warning"
-                                Command="{Binding ApplyDutyWarningPresetCommand}"
+                        <Button Content="Duty Gauge"
+                                Command="{Binding ApplyDutyGaugePresetCommand}"
                                 Style="{StaticResource ButtonStyle}"
-                                ToolTip="Duty 85% - BOARD_SUBMODE_RIDING_WARNING (>= DUTY_CYCLE_WARNING_THRESHOLD, 80%)" />
+                                ToolTip="Duty 75% - proportional green LED gauge (>= DUTY_CYCLE_GAUGE_THRESHOLD, 70%); not a distinct board_mode submode" />
                         <Button Content="Duty Danger"
                                 Command="{Binding ApplyDutyDangerPresetCommand}"
                                 Style="{StaticResource ButtonStyle}"
-                                ToolTip="Duty 95% - BOARD_SUBMODE_RIDING_DANGER (>= DUTY_CYCLE_DANGER_THRESHOLD, 90%)" />
+                                ToolTip="Duty 95% - red LED gauge + alarm, BOARD_SUBMODE_RIDING_DANGER (>= DUTY_CYCLE_DANGER_THRESHOLD, 90%)" />
                     </UniformGrid>
                 </StackPanel>
             </Border>

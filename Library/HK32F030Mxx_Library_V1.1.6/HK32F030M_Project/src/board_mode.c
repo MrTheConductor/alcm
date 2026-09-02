@@ -50,7 +50,6 @@ static timer_id_t board_mode_idle_timer_id = INVALID_TIMER_ID;
 static hysteresis_t stopped_rpm_hysteresis;
 static hysteresis_t slow_rpm_hysteresis;
 static hysteresis_t danger_hysteresis;
-static hysteresis_t warning_hysteresis;
 #if defined(ENABLE_IMU_EVENTS)
 static hysteresis_t roll_hysteresis;
 #endif
@@ -102,12 +101,6 @@ lcm_status_t board_mode_init(void)
 
     if (LCM_SUCCESS != hysteresis_init(&danger_hysteresis, DUTY_CYCLE_DANGER_THRESHOLD,
                                        DUTY_CYCLE_DANGER_THRESHOLD - 50)) // tenths of a %
-    {
-        status = LCM_ERROR;
-    }
-
-    if (LCM_SUCCESS != hysteresis_init(&warning_hysteresis, DUTY_CYCLE_WARNING_THRESHOLD,
-                                       DUTY_CYCLE_WARNING_THRESHOLD - 50)) // tenths of a %
     {
         status = LCM_ERROR;
     }
@@ -387,11 +380,9 @@ void board_mode_idle_timer_handler(uint32_t system_tick)
  * the riding submode based on the current duty cycle and RPM values.
  *
  * @see BOARD_SUBMODE_RIDING_DANGER
- * @see BOARD_SUBMODE_RIDING_WARNING
  * @see BOARD_SUBMODE_RIDING_NORMAL
  * @see BOARD_SUBMODE_RIDING_SLOW
  * @see DUTY_CYCLE_DANGER_THRESHOLD
- * @see DUTY_CYCLE_WARNING_THRESHOLD
  * @see SLOW_RPM_THRESHOLD
  */
 void update_riding_submode()
@@ -416,14 +407,6 @@ void update_riding_submode()
             set_board_mode(BOARD_MODE_RIDING, BOARD_SUBMODE_RIDING_DANGER);
         }
         // No else required - already in danger submode
-    }
-    else if (apply_hysteresis(&warning_hysteresis, duty_cycle) == STATE_SET)
-    {
-        if (board_submode != BOARD_SUBMODE_RIDING_WARNING)
-        {
-            set_board_mode(BOARD_MODE_RIDING, BOARD_SUBMODE_RIDING_WARNING);
-        }
-        // No else required - already in warning submode
     }
     else if (apply_hysteresis(&slow_rpm_hysteresis, abs(rpm)) == STATE_SET)
     {
