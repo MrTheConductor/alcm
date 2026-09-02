@@ -88,6 +88,8 @@ int test_status_leds_setup(void **state)
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_BATTERY_LEVEL_CHANGED);
     expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_DUTY_CYCLE_CHANGED);
+    expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_TOGGLE_LIGHTS);
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_TOGGLE_BEEPER);

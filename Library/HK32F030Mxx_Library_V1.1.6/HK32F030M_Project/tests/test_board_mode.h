@@ -417,19 +417,11 @@ void test_board_mode_duty_cycle(void **state)
 
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 
-    // High duty cycle should trigger warning
+    // Mid-range duty cycle (70-89%) no longer changes the board submode -
+    // that range is now only a continuous LED gauge driven directly by duty
+    // cycle in status_leds.c, not a board_mode state.
     will_return(vesc_serial_get_duty_cycle, 850); // 85.0%
     will_return(vesc_serial_get_rpm, 8);
-
-    // Riding mode will disable the idle timer
-    expect_any(is_timer_active, timer_id);
-    will_return(is_timer_active, false);
-
-    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
-    expected_state.mode = BOARD_MODE_RIDING;
-    expected_state.submode = BOARD_SUBMODE_RIDING_WARNING;
-    expect_check(event_queue_push, data, validate_board_mode_event_data,
-                 (uintmax_t)&expected_state);
 
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 
@@ -449,7 +441,8 @@ void test_board_mode_duty_cycle(void **state)
 
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 
-    // Slowing down should go back to warning
+    // Slowing back down below the danger threshold should return to the
+    // RPM-implied submode (still STOPPED, since rpm is unchanged at 8)
     will_return(vesc_serial_get_duty_cycle, 840); // 84.0%
     will_return(vesc_serial_get_rpm, 8);
 
@@ -459,7 +452,7 @@ void test_board_mode_duty_cycle(void **state)
 
     expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
     expected_state.mode = BOARD_MODE_RIDING;
-    expected_state.submode = BOARD_SUBMODE_RIDING_WARNING;
+    expected_state.submode = BOARD_SUBMODE_RIDING_STOPPED;
     expect_check(event_queue_push, data, validate_board_mode_event_data,
                  (uintmax_t)&expected_state);
 

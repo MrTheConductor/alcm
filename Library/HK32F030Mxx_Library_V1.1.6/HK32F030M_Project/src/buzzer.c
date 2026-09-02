@@ -35,7 +35,6 @@
 #define ACK_SEQUENCE 0xC000
 #define NACK_SEQUENCE 0xCC00
 #define SHUTDOWN_SEQUENCE 0xC000
-#define WARNING_SEQUENCE 0xF000
 #define DANGER_SEQUENCE 0xF0F0
 #define FAULT_SEQUENCE 0xAAAF
 #define BOOT_SEQUENCE 0xF300
@@ -260,11 +259,6 @@ EVENT_HANDLER(buzzer, board_mode)
             buzzer_play_sequence(DANGER_SEQUENCE, true);
             break;
 #endif // BUZZER_ENABLE_DANGER
-#ifdef BUZZER_ENABLE_WARNING
-        case BOARD_SUBMODE_RIDING_WARNING:
-            buzzer_play_sequence(WARNING_SEQUENCE, true);
-            break;
-#endif // BUZZER_ENABLE_WARNING
         default:
             buzzer_reset_sequence();
             break;

@@ -42,8 +42,8 @@
 //------------------------------------------------------------------------------
 #define STOPPED_RPM_THRESHOLD 20           // RPM threshold for stopped
 #define SLOW_RPM_THRESHOLD 2000            // RPM threshold for slow riding speed (3-4 MPH)
-#define DUTY_CYCLE_DANGER_THRESHOLD 900  // Duty cycle threshold for danger zone (tenths of a %)
-#define DUTY_CYCLE_WARNING_THRESHOLD 800 // Duty cycle threshold for warning zone (tenths of a %)
+#define DUTY_CYCLE_DANGER_THRESHOLD 900 // Duty cycle threshold for danger zone (tenths of a %)
+#define DUTY_CYCLE_GAUGE_THRESHOLD 700  // Duty cycle threshold to start showing the gauge (tenths of a %)
 
 //------------------------------------------------------------------------------
 // Button configuration 
@@ -59,9 +59,9 @@
 #define EVENT_QUEUE_SIZE 8U   // Maximum number of events in the queue
 // Overflow subscriber slots, used only by events with more than one
 // subscriber (each event's first subscriber lives in a dedicated head slot).
-// Currently 17 are in use (43 subscriptions across 26 distinct events);
+// Currently all 21 are in use (48 subscriptions across 27 distinct events);
 // exceeding this faults loudly at init with EMERGENCY_FAULT_OVERFLOW.
-#define MAX_SUBSCRIPTIONS 20U
+#define MAX_SUBSCRIPTIONS 21U
 #define MAX_TIMERS 8U         // Maximum number of system timers
 
 // Headlights configuration
@@ -109,7 +109,6 @@
 //
 // It can also be turned off completely to save code space and silence. 
 #define ENABLE_BUZZER 1 // Enable the buzzer module
-#undef BUZZER_ENABLE_WARNING // Enable beeper at warning threshold
 #define BUZZER_ENABLE_DANGER 1 // Enable beeper at danger threshold
 
 //------------------------------------------------------------------------------
