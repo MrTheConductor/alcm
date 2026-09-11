@@ -942,6 +942,14 @@ EVENT_HANDLER(status_leds, state_changed)
         else if ((data->board_mode.previous_mode == BOARD_MODE_IDLE) &&
                  (data->board_mode.previous_submode == BOARD_SUBMODE_IDLE_CONFIG))
         {
+            if (!leds_enabled)
+            {
+                // Push a black frame while hardware output is still enabled
+                // (from config mode) before disabling it below - otherwise
+                // the WS2812s have no power gating and simply freeze on
+                // whatever was last driven (the config-mode magenta).
+                status_leds_turn_off();
+            }
             status_leds_hw_enable(leds_enabled);
         }
     }

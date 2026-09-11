@@ -791,6 +791,15 @@ EVENT_HANDLER(vesc_serial, board_mode_change)
         {
             vesc_serial_tx_timerid =
                 set_timer(POLLING_INTERVAL_MS, TIMER_CALLBACK_NAME(vesc_serial, tx), true);
+
+            // Unlike most timers, losing VESC polling is safety-relevant -
+            // it's the only way to detect the board being unlocked or
+            // faulted, so this is the one caller that escalates a failed
+            // allocation instead of silently tolerating INVALID_TIMER_ID.
+            if (vesc_serial_tx_timerid == INVALID_TIMER_ID)
+            {
+                fault(EMERGENCY_FAULT_OVERFLOW);
+            }
         }
         break;
 

@@ -655,6 +655,43 @@ static void test_command_toggle_beeper(void **state)
     event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_BEEPER, &data);
 }
 
+/**
+ * @brief Exiting config mode while enable_status_leds is off must blank the
+ * LEDs, not just stop future refreshes.
+ *
+ * WS2812s have no power gating: status_leds_hw_enable(false) alone just
+ * stops sending new frames, leaving whatever was last driven (config mode's
+ * magenta) lit forever. state_changed() must push a black frame before
+ * disabling hardware output on exit.
+ */
+static void test_status_leds_exit_config_with_leds_disabled(void **state)
+{
+    settings->enable_status_leds = false;
+
+    event_data_t data = {0};
+    data.board_mode.mode = BOARD_MODE_IDLE;
+    data.board_mode.submode = BOARD_SUBMODE_IDLE_ACTIVE;
+    data.board_mode.previous_mode = BOARD_MODE_IDLE;
+    data.board_mode.previous_submode = BOARD_SUBMODE_IDLE_CONFIG;
+
+    // state_changed()'s config-mode check reads current mode/submode first.
+    will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_ACTIVE);
+
+    // Not entering config, but leaving it with LEDs disabled: expect a
+    // black frame pushed out before hardware output is disabled.
+    expect_function_call(stop_animation);
+    status_leds_color_t expected_buffer[STATUS_LEDS_COUNT] = {0};
+    expect_function_call(status_leds_hw_refresh);
+    expect_value(status_leds_hw_enable, enable, false);
+
+    // leds_enabled ends up false, so update_display() must not run - no
+    // further board_mode_get()/board_submode_get() calls expected.
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
+
+    validate_status_leds_buffer(expected_buffer, mock_status_leds_hw_get_buffer());
+}
+
 const struct CMUnitTest status_leds_tests[] = {
     cmocka_unit_test_setup(test_status_leds_off, test_status_leds_setup),
     cmocka_unit_test_setup(test_status_leds_set_color, test_status_leds_setup),
@@ -667,6 +704,7 @@ const struct CMUnitTest status_leds_tests[] = {
     cmocka_unit_test_setup(test_display_duty_cycle_bands, test_status_leds_setup),
     cmocka_unit_test_setup(test_display_footpad_variants, test_status_leds_setup),
     cmocka_unit_test_setup(test_command_toggle_beeper, test_status_leds_setup),
+    cmocka_unit_test_setup(test_status_leds_exit_config_with_leds_disabled, test_status_leds_setup),
 };
 
 #endif // TEST_STATUS_LEDS_H

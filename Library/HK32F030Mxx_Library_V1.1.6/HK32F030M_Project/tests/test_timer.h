@@ -235,7 +235,12 @@ void test_timer_cancel_repeating_timer_in_callback(void **state)
  * @brief Tests that the maximum number of timers can be used.
  *
  * This test verifies that the maximum number of timers can be used, and
- * that trying to create one more timer will result in an overflow error.
+ * that trying to create one more timer returns INVALID_TIMER_ID rather than
+ * escalating to a system-wide fault. Most timers are cosmetic, so a full
+ * table is a per-caller failure to tolerate (via the INVALID_TIMER_ID
+ * sentinel), not grounds to force the whole board into BOARD_MODE_FAULT -
+ * see vesc_serial's polling timer for the one caller that does escalate,
+ * since it actually is safety-relevant.
  *
  * @param[in] state The test state.
  */
@@ -252,8 +257,7 @@ void test_timer_overflow(void **state)
         assert_int_equal(timer_active_count(), i + 1);
     }
 
-    // Create one more timer
-    expect_value(fault, fault, EMERGENCY_FAULT_OVERFLOW);
+    // Create one more timer - should fail gracefully, no fault() call
     timer_id_t timer_id = set_timer(1000, (void *)(max_timers + 1), false);
     assert_int_equal(timer_id, INVALID_TIMER_ID);
     assert_int_equal(timer_active_count(), max_timers);
@@ -269,6 +273,51 @@ void test_timer_test_cancel_invalid_timer(void **state)
     assert_int_equal(cancel_timer(timer_id), LCM_ERROR);
 }
 
+/**
+ * @brief Tests that the timer_id_t (uint8_t) id generator never wraps back
+ * onto INVALID_TIMER_ID (0).
+ *
+ * If it did, the affected timer would become permanently unreachable:
+ * is_timer_active()/cancel_timer() both treat id 0 as "no timer" and
+ * short-circuit without ever consulting the table, and set_timer() itself
+ * treats a found id of 0 as "doesn't exist" - so the real slot behind it
+ * leaks forever and a second, duplicate timer gets created for the same
+ * callback on the next reuse attempt. Reproduces the id-wraparound bug
+ * found via a live ST-Link capture of a real EMERGENCY_FAULT_OVERFLOW
+ * (button mashing churned the shared debounce timer's id fast enough to
+ * wrap next_timer_id through 0 during normal operation).
+ *
+ * Anchors 7 of the 8 slots with permanent, never-cancelled timers first so
+ * every physical slot picks up a real nonzero id immediately - otherwise a
+ * still-zeroed, never-used slot (from timer_init()'s memset) would
+ * accidentally mask the bug by making a lookup for id 0 find a "collision"
+ * that isn't really one.
+ */
+void test_timer_id_never_wraps_to_invalid(void **state)
+{
+    (void)state;
+
+    for (uint8_t i = 1; i <= 7; i++)
+    {
+        timer_id_t id = set_timer(1000, (void *)(i + 100), false);
+        assert_int_not_equal(id, INVALID_TIMER_ID);
+    }
+
+    // Churn the one remaining slot through enough distinct-callback
+    // create/cancel cycles to force next_timer_id (a uint8_t) past 255.
+    for (uint16_t i = 0; i < 260; i++)
+    {
+        timer_id_t id = set_timer(1000, (void *)(i + 200), false);
+        assert_int_not_equal(id, INVALID_TIMER_ID);
+        cancel_timer(id);
+    }
+
+    timer_id_t timer_id = set_timer(1000, test_timer_callback, false);
+    assert_int_not_equal(timer_id, INVALID_TIMER_ID);
+    assert_true(is_timer_active(timer_id));
+    assert_int_equal(timer_active_count(), 8);
+}
+
 const struct CMUnitTest timer_tests[] = {
     cmocka_unit_test_setup(test_set_timer, test_timer_setup),
     cmocka_unit_test_setup(test_reset_timer, test_timer_setup),
@@ -278,5 +327,6 @@ const struct CMUnitTest timer_tests[] = {
     cmocka_unit_test_setup(test_timer_cancel_repeating_timer_in_callback, test_timer_setup),
     cmocka_unit_test_setup(test_timer_overflow, test_timer_setup),
     cmocka_unit_test_setup(test_timer_test_cancel_invalid_timer, test_timer_setup),
+    cmocka_unit_test_setup(test_timer_id_never_wraps_to_invalid, test_timer_setup),
 };
 #endif

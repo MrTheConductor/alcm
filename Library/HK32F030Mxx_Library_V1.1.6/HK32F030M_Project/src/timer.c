@@ -127,10 +127,23 @@ timer_t *find_available_timer(void)
  */
 timer_id_t find_next_timer_id(void)
 {
+    // next_timer_id is a uint8_t and wraps at 256 - skip INVALID_TIMER_ID
+    // (0) whenever we land on it, otherwise a live timer would be assigned
+    // the same id every other function treats as "no timer", permanently
+    // orphaning its slot.
+    if (next_timer_id == INVALID_TIMER_ID)
+    {
+        next_timer_id++;
+    }
+
     const timer_t *timer = find_timer_by_id(next_timer_id);
     while (timer != NULL)
     {
         next_timer_id++;
+        if (next_timer_id == INVALID_TIMER_ID)
+        {
+            next_timer_id++;
+        }
         timer = find_timer_by_id(next_timer_id);
     }
     return next_timer_id;
@@ -158,8 +171,14 @@ timer_id_t set_timer(uint32_t timeout, void (*callback)(uint32_t), bool_t repeat
         }
         else
         {
+            // Table is full. Most timers are cosmetic (animations, button
+            // debounce, UI feedback) and callers already treat
+            // INVALID_TIMER_ID as a safe no-op via is_timer_active()/
+            // cancel_timer() - so a full table shouldn't force every caller
+            // into BOARD_MODE_FAULT. A caller that actually depends on its
+            // timer for safety can check the return value and escalate
+            // itself (see vesc_serial's polling timer).
             timer_id = INVALID_TIMER_ID;
-            fault(EMERGENCY_FAULT_OVERFLOW);
         }
     }
     else
