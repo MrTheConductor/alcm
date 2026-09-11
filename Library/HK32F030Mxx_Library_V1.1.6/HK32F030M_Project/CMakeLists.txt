@@ -10,6 +10,48 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(doxygen)
 set(DOXYGEN_EXECUTABLE ${doxygen_SOURCE_DIR}/doxygen.exe)
 
+# Fetch OpenCppCoverage (used by the test_coverage target below) if it isn't
+# already installed. GitHub only publishes an NSIS installer for it (no
+# portable zip), so FetchContent's archive-unpacking can't be used here -
+# download it directly and run it silently instead.
+#
+# Note: the installer ignores /D and always installs to Program Files
+# regardless of the directory requested, and - at least in the environment
+# this was verified in - does so without a UAC prompt even from a
+# non-elevated shell. That may not hold on every machine, so this is
+# best-effort: if the silent install doesn't go through (e.g. UAC declined),
+# the test_coverage target is simply skipped rather than failing the build.
+set(OPENCPPCOVERAGE_VERSION "0.9.9.0")
+find_program(OPENCPPCOVERAGE_EXECUTABLE OpenCppCoverage.exe
+    PATHS "C:/Program Files/OpenCppCoverage"
+)
+
+if(NOT OPENCPPCOVERAGE_EXECUTABLE)
+    set(OPENCPPCOVERAGE_INSTALLER
+        "${CMAKE_BINARY_DIR}/OpenCppCoverageSetup-x64-${OPENCPPCOVERAGE_VERSION}.exe")
+    message(STATUS "OpenCppCoverage not found, downloading v${OPENCPPCOVERAGE_VERSION}...")
+    file(DOWNLOAD
+        "https://github.com/OpenCppCoverage/OpenCppCoverage/releases/download/release-${OPENCPPCOVERAGE_VERSION}/OpenCppCoverageSetup-x64-${OPENCPPCOVERAGE_VERSION}.exe"
+        "${OPENCPPCOVERAGE_INSTALLER}"
+        STATUS OPENCPPCOVERAGE_DOWNLOAD_STATUS
+    )
+    list(GET OPENCPPCOVERAGE_DOWNLOAD_STATUS 0 OPENCPPCOVERAGE_DOWNLOAD_CODE)
+
+    if(OPENCPPCOVERAGE_DOWNLOAD_CODE EQUAL 0)
+        message(STATUS "Installing OpenCppCoverage silently...")
+        execute_process(COMMAND "${OPENCPPCOVERAGE_INSTALLER}" /S)
+        find_program(OPENCPPCOVERAGE_EXECUTABLE OpenCppCoverage.exe
+            PATHS "C:/Program Files/OpenCppCoverage"
+        )
+    else()
+        message(WARNING "Failed to download OpenCppCoverage - the 'test_coverage' target will not be available")
+    endif()
+
+    if(NOT OPENCPPCOVERAGE_EXECUTABLE)
+        message(WARNING "OpenCppCoverage silent install did not complete (may need admin/UAC approval) - the 'test_coverage' target will not be available")
+    endif()
+endif()
+
 # Add coverage flags for GCC or Clang
 if(CMAKE_COMPILER_ID MATCHES "Clang|GNU")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -98,13 +140,17 @@ file(TO_NATIVE_PATH "$(CMAKE_SOURCE_DIR)/src" WINDOWS_CMAKE_SOURCE_DIR)
 message(STATUS "${WINDOWS_CMAKE_SOURCE_DIR}")
 
 # Add test coverage
-add_custom_target(test_coverage
-    COMMAND C:/Program\ Files/OpenCppCoverage/OpenCppCoverage.exe --export_type html:coverage\\headlights --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_headlights.exe
-    COMMAND C:/Program\ Files/OpenCppCoverage/OpenCppCoverage.exe --export_type html:coverage\\status_leds --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_status_leds.exe
-    COMMAND C:/Program\ Files/OpenCppCoverage/OpenCppCoverage.exe --export_type html:coverage\\board_mode --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_board_mode.exe
-    COMMAND C:/Program\ Files/OpenCppCoverage/OpenCppCoverage.exe --export_type html:coverage\\event_queue --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_event_queue.exe
-    COMMAND C:/Program\ Files/OpenCppCoverage/OpenCppCoverage.exe --export_type html:coverage\\timer --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_timer.exe
-    COMMAND C:/Program\ Files/OpenCppCoverage/OpenCppCoverage.exe --export_type html:coverage\\alcm --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_alcm.exe
-    COMMENT "Generating test coverage"
-    VERBATIM
-)
+if(OPENCPPCOVERAGE_EXECUTABLE)
+    add_custom_target(test_coverage
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\headlights --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_headlights.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\status_leds --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_status_leds.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\board_mode --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_board_mode.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\event_queue --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_event_queue.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\timer --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_timer.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\alcm --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_alcm.exe
+        COMMENT "Generating test coverage"
+        VERBATIM
+    )
+else()
+    message(STATUS "OpenCppCoverage not available - 'test_coverage' target not created")
+endif()

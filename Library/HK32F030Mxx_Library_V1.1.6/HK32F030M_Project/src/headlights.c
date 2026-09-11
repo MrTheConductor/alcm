@@ -365,6 +365,30 @@ EVENT_HANDLER(headlights, state_change)
     {
     // Handle headlight conditions related to board mode
     case EVENT_BOARD_MODE_CHANGED:
+        // Configuration mode's headlight-brightness menu item is useless if
+        // the headlights are toggled off, so they're forced on regardless of
+        // the user's enable_headlights setting, then restored to that
+        // setting on exit - mirrors the same treatment given to the beeper
+        // and status LEDs
+        if ((board_mode_get() == BOARD_MODE_IDLE) && (board_submode_get() == BOARD_SUBMODE_IDLE_CONFIG))
+        {
+            enable_control = 255U;
+            headlights_set_enable_animation(HEADLIGHTS_ENABLE_ANIMATION_NONE);
+        }
+        else if ((data->board_mode.previous_mode == BOARD_MODE_IDLE) &&
+                 (data->board_mode.previous_submode == BOARD_SUBMODE_IDLE_CONFIG))
+        {
+            if (headlights_settings->enable_headlights)
+            {
+                enable_control = 255U;
+                headlights_set_enable_animation(HEADLIGHTS_ENABLE_ANIMATION_NONE);
+            }
+            else
+            {
+                headlights_set_enable_animation(HEADLIGHTS_ENABLE_ANIMATION_FADE_OUT);
+            }
+        }
+
         switch (board_mode_get())
         {
         case BOARD_MODE_BOOTING:

@@ -84,7 +84,10 @@ void test_headlights_boot(void **state)
     data.board_mode.mode = BOARD_MODE_BOOTING;
     data.board_mode.submode = BOARD_SUBMODE_UNDEFINED;
 
-    // Add mocks
+    // Add mocks. state_change() reads board_mode_get() twice: once for the
+    // config-mode enter/exit check (which runs before the mode switch) and
+    // once for the switch itself.
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
     will_return(board_mode_get, BOARD_MODE_BOOTING);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
@@ -103,7 +106,10 @@ void test_headlights_riding(void **state)
     data.board_mode.mode = BOARD_MODE_RIDING;
     data.board_mode.submode = BOARD_SUBMODE_UNDEFINED;
 
-    // Add mocks
+    // Add mocks. state_change() reads board_mode_get() twice: once for the
+    // config-mode enter/exit check (which runs before the mode switch) and
+    // once for the switch itself.
+    will_return(board_mode_get, BOARD_MODE_RIDING);
     will_return(board_mode_get, BOARD_MODE_RIDING);
 
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
@@ -122,7 +128,11 @@ void test_headlights_idle_active(void **state)
     data.board_mode.mode = BOARD_MODE_IDLE;
     data.board_mode.submode = BOARD_SUBMODE_IDLE_ACTIVE;
 
-    // Add mocks
+    // Add mocks. state_change() reads board_mode_get()/board_submode_get()
+    // twice: once for the config-mode enter/exit check (which runs before
+    // the mode switch) and once for the switch(es) themselves.
+    will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_ACTIVE);
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_ACTIVE);
 
@@ -137,7 +147,11 @@ void test_headlights_idle_default(void **state)
     data.board_mode.mode = BOARD_MODE_IDLE;
     data.board_mode.submode = BOARD_SUBMODE_IDLE_DEFAULT;
 
-    // Add mocks
+    // Add mocks. state_change() reads board_mode_get()/board_submode_get()
+    // twice: once for the config-mode enter/exit check (which runs before
+    // the mode switch) and once for the switch(es) themselves.
+    will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_DEFAULT);
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_DEFAULT);
 

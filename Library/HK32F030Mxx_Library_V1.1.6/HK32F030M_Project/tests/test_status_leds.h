@@ -145,6 +145,10 @@ static void test_status_leds_off(void **state)
         expected_buffer[i].b = 0x00;
     }
 
+    // state_changed() reads board_mode_get() twice: once for the config-mode
+    // check (which must run even when status LEDs are disabled) and once
+    // inside update_display()'s own dispatch.
+    will_return(board_mode_get, BOARD_MODE_OFF);
     will_return(board_mode_get, BOARD_MODE_OFF);
 
     expect_function_call(stop_animation);
@@ -229,6 +233,10 @@ static void test_status_leds_boot(void **state)
     event_data_t data = {0};
     data.board_mode.mode = BOARD_MODE_BOOTING;
     data.board_mode.submode = BOARD_SUBMODE_UNDEFINED;
+    // state_changed() reads board_mode_get() twice: once for the config-mode
+    // check (which must run even when status LEDs are disabled) and once
+    // inside update_display()'s own dispatch.
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
     will_return(board_mode_get, BOARD_MODE_BOOTING);
 
     // Disable boot animation
@@ -246,6 +254,7 @@ static void test_status_leds_boot(void **state)
 
     // Set boot animation to rainbow mirror
     will_return(board_mode_get, BOARD_MODE_BOOTING);
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
     settings->boot_animation = ANIMATION_OPTION_RAINBOW_MIRROR;
     will_return(vesc_serial_get_imu_roll, 0);
     expect_fill_animation();
@@ -254,8 +263,10 @@ static void test_status_leds_boot(void **state)
 
     // Any non-mode change event should not affect the boot animation
     will_return(board_mode_get, BOARD_MODE_BOOTING);
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
     event_queue_call_mocked_callback(EVENT_FOOTPAD_CHANGED, &data);
 
+    will_return(board_mode_get, BOARD_MODE_BOOTING);
     will_return(board_mode_get, BOARD_MODE_BOOTING);
     event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);
 }
@@ -302,6 +313,12 @@ static void test_status_leds_fault(void **state)
     event_data_t data = {0};
     data.board_mode.mode = BOARD_MODE_FAULT;
     data.board_mode.submode = BOARD_SUBMODE_UNDEFINED;
+    // state_changed() reads board_mode_get() twice: once for the config-mode
+    // check (which must run even when status LEDs are disabled) and once
+    // inside update_display()'s own dispatch. board_submode_get() is only
+    // read once, by status_leds_handle_fault(), since mode != IDLE short-
+    // circuits the config-mode check before it reads submode.
+    will_return(board_mode_get, BOARD_MODE_FAULT);
     will_return(board_mode_get, BOARD_MODE_FAULT);
     will_return(board_submode_get, BOARD_SUBMODE_UNDEFINED);
 
@@ -311,8 +328,10 @@ static void test_status_leds_fault(void **state)
 
     // Any non-mode change event should not affect the fault animation
     will_return(board_mode_get, BOARD_MODE_FAULT);
+    will_return(board_mode_get, BOARD_MODE_FAULT);
     event_queue_call_mocked_callback(EVENT_FOOTPAD_CHANGED, &data);
 
+    will_return(board_mode_get, BOARD_MODE_FAULT);
     will_return(board_mode_get, BOARD_MODE_FAULT);
     event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);
 }
@@ -335,12 +354,17 @@ static void test_status_leds_toggle(void **state)
     event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_LIGHTS, &data);
 
     // Events should not affect the fade animation. state_changed()
-    // unconditionally checks board_mode_get() (to keep the locked
-    // indicator visible even when status LEDs are otherwise disabled), so
-    // every event routed there needs a mocked return here too.
+    // unconditionally checks board_mode_get() (to keep the config-mode and
+    // locked indicators visible even when status LEDs are otherwise
+    // disabled), so every event routed there needs a mocked return here
+    // too. Since mode is IDLE, the config-mode check also reads submode;
+    // it's not CONFIG here, so leds stay off and update_display() (and its
+    // own board_mode_get()/board_submode_get() reads) never runs.
     will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_ACTIVE);
     event_queue_call_mocked_callback(EVENT_FOOTPAD_CHANGED, &data);
     will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_ACTIVE);
     event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);
 
     // Simulate animation completed
@@ -381,6 +405,11 @@ static void test_status_leds_idle_dozing(void **state)
     event_data_t data = {0};
     data.board_mode.mode = BOARD_MODE_IDLE;
     data.board_mode.submode = BOARD_SUBMODE_IDLE_DOZING;
+    // state_changed() reads board_mode_get()/board_submode_get() twice:
+    // once for the config-mode check (which must run even when status LEDs
+    // are disabled) and once inside update_display()'s own dispatch.
+    will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
 
@@ -400,10 +429,14 @@ static void test_status_leds_idle_dozing(void **state)
     // Status LEDs should stay off, even if battery changes
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
+    will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
     event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);
 
     // Set dozing animation to rainbow (fill animation)
     settings->dozing_animation = ANIMATION_OPTION_RAINBOW_MIRROR;
+    will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
     will_return(vesc_serial_get_imu_roll, 0);
@@ -411,6 +444,8 @@ static void test_status_leds_idle_dozing(void **state)
     event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
 
     // Animation keeps running, even if battery changes
+    will_return(board_mode_get, BOARD_MODE_IDLE);
+    will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
     will_return(board_mode_get, BOARD_MODE_IDLE);
     will_return(board_submode_get, BOARD_SUBMODE_IDLE_DOZING);
     event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);

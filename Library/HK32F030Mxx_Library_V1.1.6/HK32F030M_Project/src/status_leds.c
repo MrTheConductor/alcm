@@ -925,8 +925,9 @@ void status_leds_disable_lights_callback(void)
 EVENT_HANDLER(status_leds, state_changed)
 {
     bool_t leds_enabled = status_leds_settings->enable_status_leds;
+    board_mode_t current_mode = board_mode_get();
     bool_t is_config =
-        (board_mode_get() == BOARD_MODE_IDLE) && (board_submode_get() == BOARD_SUBMODE_IDLE_CONFIG);
+        (current_mode == BOARD_MODE_IDLE) && (board_submode_get() == BOARD_SUBMODE_IDLE_CONFIG);
 
     if (event == EVENT_BOARD_MODE_CHANGED)
     {
@@ -967,7 +968,7 @@ EVENT_HANDLER(status_leds, state_changed)
 
     // The locked indicator must stay visible even if status LEDs are
     // otherwise disabled by the user
-    leds_enabled = leds_enabled || (board_mode_get() == BOARD_MODE_DISABLED);
+    leds_enabled = leds_enabled || (current_mode == BOARD_MODE_DISABLED);
 #endif
 
     if (leds_enabled)
