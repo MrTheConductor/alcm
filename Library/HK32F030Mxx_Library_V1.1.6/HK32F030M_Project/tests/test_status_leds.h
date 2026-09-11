@@ -451,6 +451,210 @@ static void test_status_leds_idle_dozing(void **state)
     event_queue_call_mocked_callback(EVENT_BATTERY_LEVEL_CHANGED, &data);
 }
 
+// Not declared in status_leds.h - non-static so tests can call them
+// directly, matching this codebase's convention. Called directly, these
+// don't involve board_mode_get()/board_submode_get() at all.
+uint16_t status_leds_start_animation_option(animation_option_t option);
+void display_battery(int16_t battery_level);
+void display_duty_cycle(int16_t duty_cycle);
+void display_footpad(footpads_state_t footpad);
+
+/**
+ * @brief Loops status_leds_start_animation_option() through every option
+ * not already exercised by the boot/dozing tests above, to raise
+ * status_leds.c's overall branch coverage cheaply - each option just
+ * needs to dispatch to the right underlying animation-setup call.
+ */
+static void test_start_animation_option_dispatches_every_option(void **state)
+{
+    // ENABLE_IMU_EVENTS is on, so every call reads the IMU roll first,
+    // regardless of which animation option is requested.
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_scan_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_RAINBOW_SCAN);
+
+#ifdef ENABLE_KNIGHT_RIDER_ANIMATION
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_scan_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_KNIGHT_RIDER);
+#endif
+
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_fill_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_RAINBOW_BAR);
+
+#ifdef ENABLE_THE_FUZZ_ANIMATION
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_fill_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_THE_FUZZ);
+#endif
+
+#ifdef ENABLE_FIRE_ANIMATION
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_any(fire_animation_setup, buffer);
+    expect_function_call(fire_animation_setup);
+    will_return(fire_animation_setup, 1U);
+    status_leds_start_animation_option(ANIMATION_OPTION_FIRE);
+#endif
+
+#ifdef ENABLE_EXPANDING_PULSE_ANIMATION
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_scan_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_EXPANDING_PULSE);
+#endif
+
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_fill_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_120_SCROLL);
+
+#ifdef ENABLE_IMPLODING_PULSE_ANIMATION
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_scan_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_IMPLODING_PULSE);
+#endif
+
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_fill_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_COMPLEMENTARY_WAVE);
+
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_scan_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_PERSONAL_SCAN);
+
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_scan_animation();
+    status_leds_start_animation_option(ANIMATION_OPTION_FLOATWHEEL_CLASSIC);
+
+    // Fade-to-black path (also covers ANIMATION_OPTION_NONE elsewhere).
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_any(fade_animation_setup, buffer);
+    expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
+    expect_value(fade_animation_setup, callback, NULL);
+    expect_function_call(fade_animation_setup);
+    will_return(fade_animation_setup, 1U);
+    status_leds_start_animation_option(ANIMATION_OPTION_NONE);
+
+    // Out-of-range option -> fault.
+    will_return(vesc_serial_get_imu_roll, 0);
+    expect_value(fault, fault, EMERGENCY_FAULT_INVALID_STATE);
+    status_leds_start_animation_option(ANIMATION_OPTION_COUNT);
+}
+
+/**
+ * @brief display_battery()'s three bands: normal (white gauge), low
+ * (orange gauge), and critical (red flash, only re-started if not
+ * already the active animation).
+ */
+static void test_display_battery_bands(void **state)
+{
+    // Normal: white gauge bar. display_gauge_bar() always stops any
+    // current animation before starting the scan.
+    expect_function_call(stop_animation);
+    expect_scan_animation();
+    display_battery(900); // 90.0%, above LOW_BATTERY_THRESHOLD
+
+    // Low: orange gauge bar (same call shape, different color - not
+    // independently observable via the mock, so just confirm it doesn't
+    // crash/misdispatch).
+    expect_function_call(stop_animation);
+    expect_scan_animation();
+    display_battery(100); // 10.0%, at/below LOW_BATTERY_THRESHOLD (150)
+
+    // Critical, animation not already running: starts a new flash.
+    // get_animation_id()/stop_animation() use expect_function_call_any()
+    // here rather than expect_function_call(), since mixing this test's
+    // first-ever use of get_animation_id into the same strict
+    // cross-symbol call-ordering queue as the many stop_animation/
+    // scan_animation_setup/fill_animation_setup calls above isn't worth
+    // the fragility - the return value and the fact that it's called are
+    // what matter for this branch, not its exact position.
+    expect_function_call_any(get_animation_id);
+    will_return(get_animation_id, 0U);
+    expect_function_call_any(stop_animation);
+    expect_any(fill_animation_setup, buffer);
+    expect_any(fill_animation_setup, color_mode);
+    expect_any(fill_animation_setup, brightness_mode);
+    expect_any(fill_animation_setup, fill_mode);
+    expect_any(fill_animation_setup, first_led);
+    expect_any(fill_animation_setup, last_led);
+    expect_any(fill_animation_setup, hue_min);
+    expect_any(fill_animation_setup, hue_max);
+    expect_any(fill_animation_setup, color_speed);
+    expect_any(fill_animation_setup, brightness_min);
+    expect_any(fill_animation_setup, brightness_max);
+    expect_any(fill_animation_setup, brightness_speed);
+    expect_any(fill_animation_setup, brightness_sequence);
+    expect_any(fill_animation_setup, rgb);
+    expect_function_call(fill_animation_setup);
+    will_return(fill_animation_setup, 42U);
+    display_battery(30); // 3.0%, at/below CRITICAL_BATTERY_THRESHOLD (50)
+
+    // Critical again, animation already running (matches the id just
+    // returned above) - must NOT restart it. get_animation_id was already
+    // registered as expect_function_call_any() above, which covers any
+    // number of calls for the rest of this test - registering it again
+    // here would leave that duplicate permanently unconsumed instead.
+    will_return(get_animation_id, 42U);
+    display_battery(30);
+}
+
+static void test_display_duty_cycle_bands(void **state)
+{
+    // Below the danger threshold: green gauge.
+    expect_function_call(stop_animation);
+    expect_scan_animation();
+    display_duty_cycle(500); // 50.0%
+
+    // At/above the danger threshold: red gauge.
+    expect_function_call(stop_animation);
+    expect_scan_animation();
+    display_duty_cycle(950); // 95.0%
+}
+
+static void test_display_footpad_variants(void **state)
+{
+    expect_function_call(stop_animation);
+    expect_function_call(status_leds_hw_refresh);
+    display_footpad(LEFT_FOOTPAD);
+
+    expect_function_call(stop_animation);
+    expect_function_call(status_leds_hw_refresh);
+    display_footpad(RIGHT_FOOTPAD);
+
+    expect_function_call(stop_animation);
+    expect_function_call(status_leds_hw_refresh);
+    display_footpad(LEFT_FOOTPAD | RIGHT_FOOTPAD);
+
+    // No footpad case (default: in the switch) - still clears and
+    // refreshes, just doesn't add any color on top.
+    expect_function_call(stop_animation);
+    expect_function_call(status_leds_hw_refresh);
+    display_footpad(NONE_FOOTPAD);
+}
+
+/**
+ * @brief EVENT_HANDLER(status_leds, command)'s TOGGLE_BEEPER branch.
+ */
+static void test_command_toggle_beeper(void **state)
+{
+    // enable_beep currently true (test_status_leds_setup default is
+    // unset/false actually - force it explicitly for clarity).
+    settings->enable_beep = true;
+
+    event_data_t data = {0};
+    // !enable_beep is false -> no-op branch.
+    event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_BEEPER, &data);
+
+    // !enable_beep is true -> fade to red then disable.
+    settings->enable_beep = false;
+    expect_any(fade_animation_setup, buffer);
+    expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
+    expect_not_value(fade_animation_setup, callback, NULL);
+    expect_function_call(fade_animation_setup);
+    will_return(fade_animation_setup, 1U);
+    event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_BEEPER, &data);
+}
+
 const struct CMUnitTest status_leds_tests[] = {
     cmocka_unit_test_setup(test_status_leds_off, test_status_leds_setup),
     cmocka_unit_test_setup(test_status_leds_set_color, test_status_leds_setup),
@@ -458,6 +662,11 @@ const struct CMUnitTest status_leds_tests[] = {
     cmocka_unit_test_setup(test_status_leds_fault, test_status_leds_setup),
     cmocka_unit_test_setup(test_status_leds_toggle, test_status_leds_setup),
     cmocka_unit_test_setup(test_status_leds_idle_dozing, test_status_leds_setup),
+    cmocka_unit_test_setup(test_start_animation_option_dispatches_every_option, test_status_leds_setup),
+    cmocka_unit_test_setup(test_display_battery_bands, test_status_leds_setup),
+    cmocka_unit_test_setup(test_display_duty_cycle_bands, test_status_leds_setup),
+    cmocka_unit_test_setup(test_display_footpad_variants, test_status_leds_setup),
+    cmocka_unit_test_setup(test_command_toggle_beeper, test_status_leds_setup),
 };
 
 #endif // TEST_STATUS_LEDS_H

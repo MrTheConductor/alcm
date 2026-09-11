@@ -106,12 +106,39 @@ add_library(status_leds STATIC
     src/status_leds.c
 )
 
+add_library(hysteresis STATIC
+    src/hysteresis.c
+)
+
+add_library(settings STATIC
+    src/settings.c
+    src/crc16_ccitt.c
+)
+
+add_library(button_driver STATIC
+    src/button_driver.c
+)
+
+add_library(button_events STATIC
+    src/button_events.c
+)
+
+add_library(command_processor STATIC
+    src/command_processor.c
+    src/function_generator.c
+)
+
 target_include_directories(alcm PUBLIC inc tests/mocks)
 target_include_directories(timer PUBLIC inc tests/mocks)
 target_include_directories(event_queue PUBLIC inc tests/mocks)
 target_include_directories(board_mode PUBLIC inc tests/mocks)
 target_include_directories(status_leds PUBLIC inc tests/mocks)
 target_include_directories(headlights PUBLIC inc tests/mocks)
+target_include_directories(hysteresis PUBLIC inc tests/mocks)
+target_include_directories(settings PUBLIC inc tests/mocks)
+target_include_directories(button_driver PUBLIC inc tests/mocks)
+target_include_directories(button_events PUBLIC inc tests/mocks)
+target_include_directories(command_processor PUBLIC inc tests/mocks)
 
 # Enable testing
 enable_testing()
@@ -148,6 +175,11 @@ if(OPENCPPCOVERAGE_EXECUTABLE)
         COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\event_queue --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_event_queue.exe
         COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\timer --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_timer.exe
         COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\alcm --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_alcm.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\hysteresis --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_hysteresis.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\settings --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_settings.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\button_driver --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_button_driver.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\button_events --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_button_events.exe
+        COMMAND "${OPENCPPCOVERAGE_EXECUTABLE}" --export_type html:coverage\\command_processor --sources ${WINDOWS_CMAKE_SOURCE_DIR}  --excluded_sources "D:\\*" --excluded_modules "*.dll" -- ${CMAKE_BINARY_DIR}/tests/Debug/test_command_processor.exe
         COMMENT "Generating test coverage"
         VERBATIM
     )

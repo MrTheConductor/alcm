@@ -25,6 +25,7 @@
 #include <stddef.h>
 
 #include "vesc_serial.h"
+#include "crc16_ccitt.h"
 #include "settings.h"
 #include "command_processor.h"
 #include "battery_lut.h"
@@ -632,6 +633,266 @@ void test_vesc_serial_app_integration(void **state)
     assert_true(ring_buffer_is_empty(rx_buffer));
 }
 
+// Not declared in vesc_serial.h - non-static so tests can call it
+// directly, matching this codebase's convention.
+void clear_outstanding_packets(void);
+
+/**
+ * @brief board_mode_change() dispatches every polling-mode value the same
+ * way as BOOTING/IDLE (already covered above) - a couple more for branch
+ * coverage of the switch itself, plus the non-polling default branch's
+ * "already inactive" sub-case.
+ */
+/**
+ * @brief vesc_serial_tx_timerid is a module static that vesc_serial_init()
+ * never resets, so it carries over from whatever earlier tests in this
+ * group left it at (non-invalid, since test_vesc_serial_timer_callback
+ * started one and nothing since has torn it down) - is_timer_active() is
+ * therefore always consulted here, not short-circuited.
+ */
+static void test_board_mode_change_riding_and_disabled_poll(void **state)
+{
+    (void)state;
+
+    // Not active - starts a fresh timer.
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, false);
+    expect_any(set_timer, timeout);
+    expect_any(set_timer, callback);
+    expect_value(set_timer, repeat, true);
+    event_data_t data = {0};
+    data.board_mode.mode = BOARD_MODE_RIDING;
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
+
+    // Already active - no new timer.
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, true);
+    data.board_mode.mode = BOARD_MODE_DISABLED;
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
+}
+
+/**
+ * @brief The non-polling ("default") branch, with the timer non-invalid
+ * (see the comment above) and reporting inactive - is_timer_active() is
+ * consulted but cancel_timer() must NOT be called.
+ */
+static void test_board_mode_change_off_with_inactive_timer(void **state)
+{
+    (void)state;
+
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, false);
+    event_data_t data = {0};
+    data.board_mode.mode = BOARD_MODE_OFF;
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &data);
+}
+
+/**
+ * @brief The tx timer callback's outstanding-packet accounting: it only
+ * increments while vesc_alive is true, and faults once the count reaches
+ * MAX_OUTSTANDING_PACKETS (5), which also resets vesc_alive and clears the
+ * count back to 0.
+ */
+static void test_tx_timer_faults_after_max_outstanding_packets(void **state)
+{
+    (void)state;
+
+    // Arm the tx timer via a board-mode dispatch first, so
+    // call_timer_callback() below has a real, known timer id to invoke -
+    // timer_init() (in vesc_serial_setup()) resets the mock's id counter
+    // fresh each test, so this is the first set_timer() call here and is
+    // assigned id 1, regardless of vesc_serial_tx_timerid's carried-over
+    // value from earlier tests (see test_board_mode_change_riding_and_
+    // disabled_poll's comment).
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, false);
+    expect_any(set_timer, timeout);
+    expect_any(set_timer, callback);
+    expect_value(set_timer, repeat, true);
+    event_data_t boot_data = {0};
+    boot_data.board_mode.mode = BOARD_MODE_BOOTING;
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &boot_data);
+
+    // Establish vesc_alive = true via one valid (if unknown-command)
+    // packet first - this also calls clear_outstanding_packets() at the
+    // top of the rx handler, so outstanding starts at 0 here.
+    ring_buffer_t *rx_buffer = vesc_serial_get_rx_buffer();
+    ring_buffer_push(rx_buffer, 0x02);
+    ring_buffer_push(rx_buffer, 0x01);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x03);
+    expect_value(event_queue_push, event, EVENT_VESC_ALIVE);
+    expect_any(event_queue_push, data);
+    event_data_t rx_data = {0};
+    event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_data);
+
+    // 5 ticks (0..4) increment outstanding to 5, each just sending; the
+    // 6th tick sees outstanding (post-increment check is `>= 5`, checked
+    // against the PRE-increment value 5 on the 6th call) trips the fault.
+    for (int i = 0; i < 5; i++)
+    {
+        expect_any(vesc_serial_hw_send, data);
+        expect_any(vesc_serial_hw_send, len);
+        call_timer_callback(1, 0);
+    }
+
+    expect_value(fault, fault, EMERGENCY_FAULT_VESC_COMM_TIMEOUT);
+    expect_any(vesc_serial_hw_send, data);
+    expect_any(vesc_serial_hw_send, len);
+    call_timer_callback(1, 0);
+
+    // vesc_alive is now false again - the NEXT tick must not increment
+    // (and therefore must not fault again either).
+    expect_any(vesc_serial_hw_send, data);
+    expect_any(vesc_serial_hw_send, len);
+    call_timer_callback(1, 0);
+}
+
+static bool_t busy_callback_invoked = false;
+static void test_busy_callback(void)
+{
+    busy_callback_invoked = true;
+}
+
+/**
+ * @brief vesc_serial_check_busy_and_set_callback()/clear_outstanding_packets():
+ * not busy while idle (never alive, or no outstanding packets), busy once
+ * alive with an outstanding packet, and the queued callback fires exactly
+ * once the next time anything clears the outstanding count.
+ */
+static void test_check_busy_and_set_callback(void **state)
+{
+    (void)state;
+
+    busy_callback_invoked = false;
+
+    // Never alive yet - not busy regardless of outstanding count.
+    assert_int_equal(LCM_SUCCESS, vesc_serial_check_busy_and_set_callback(test_busy_callback));
+
+    // Arm the tx timer with a real, known id (see the comment in
+    // test_tx_timer_faults_after_max_outstanding_packets for why this is
+    // needed before call_timer_callback() below can do anything).
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, false);
+    expect_any(set_timer, timeout);
+    expect_any(set_timer, callback);
+    expect_value(set_timer, repeat, true);
+    event_data_t boot_data = {0};
+    boot_data.board_mode.mode = BOARD_MODE_BOOTING;
+    event_queue_call_mocked_callback(EVENT_BOARD_MODE_CHANGED, &boot_data);
+
+    // Become alive via one valid packet (also clears outstanding to 0).
+    ring_buffer_t *rx_buffer = vesc_serial_get_rx_buffer();
+    ring_buffer_push(rx_buffer, 0x02);
+    ring_buffer_push(rx_buffer, 0x01);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x03);
+    expect_value(event_queue_push, event, EVENT_VESC_ALIVE);
+    expect_any(event_queue_push, data);
+    event_data_t rx_data = {0};
+    event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_data);
+
+    // Alive but outstanding is still 0 - not busy.
+    assert_int_equal(LCM_SUCCESS, vesc_serial_check_busy_and_set_callback(test_busy_callback));
+
+    // One tx tick makes outstanding 1 - now busy, callback stored.
+    expect_any(vesc_serial_hw_send, data);
+    expect_any(vesc_serial_hw_send, len);
+    call_timer_callback(1, 0);
+    assert_int_equal(LCM_BUSY, vesc_serial_check_busy_and_set_callback(test_busy_callback));
+
+    // Anything that clears outstanding (another valid rx) must invoke the
+    // stored callback exactly once.
+    ring_buffer_push(rx_buffer, 0x02);
+    ring_buffer_push(rx_buffer, 0x01);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x00);
+    ring_buffer_push(rx_buffer, 0x03);
+    event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_data);
+    assert_true(busy_callback_invoked);
+}
+
+/**
+ * @brief The EVENT_VESC_FAULT_CHANGED path is never exercised by any
+ * existing test (they all use fault=0, matching the cached initial 0) -
+ * a nonzero fault byte must fire it, and the accessor must reflect it.
+ */
+static void test_comm_setup_fault_changed(void **state)
+{
+    (void)state;
+
+    ring_buffer_t *rx_buffer = vesc_serial_get_rx_buffer();
+
+    // Same payload as test_vesc_serial_comm_setup_decodes_values but with
+    // fault=5 instead of 0 - only the fault byte and its CRC differ.
+    uint8_t payload[] = {0x33, 0x00, 0x01, 0x01, 0xb8,
+                          0x00, 0x00, 0x01, 0xf4,
+                          0x00, 0xfa,
+                          0x00, 0x00, 0x03, 0xe8,
+                          0x01, 0x86,
+                          0x03, 0xe7,
+                          0x05};
+
+    // Compute the CRC dynamically rather than hand-deriving it - avoids
+    // an error-prone manual recompute for a payload that only exists to
+    // change one byte from an already-verified test.
+    uint16_t crc = crc16_ccitt(payload, sizeof(payload));
+
+    expect_value(event_queue_push, event, EVENT_VESC_ALIVE);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_DUTY_CYCLE_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_RPM_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_VOLTAGE_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_BATTERY_LEVEL_CHANGED);
+    expect_any(event_queue_push, data);
+    expect_value(event_queue_push, event, EVENT_VESC_FAULT_CHANGED);
+    expect_any(event_queue_push, data);
+
+    ring_buffer_push(rx_buffer, 0x02);
+    ring_buffer_push(rx_buffer, (uint8_t)sizeof(payload));
+    for (size_t i = 0; i < sizeof(payload); i++)
+    {
+        ring_buffer_push(rx_buffer, payload[i]);
+    }
+    ring_buffer_push(rx_buffer, (uint8_t)(crc >> 8));
+    ring_buffer_push(rx_buffer, (uint8_t)(crc & 0xFF));
+    ring_buffer_push(rx_buffer, 0x03);
+
+    event_data_t rx_event_data = {0};
+    event_queue_call_mocked_callback(EVENT_SERIAL_DATA_RX, &rx_event_data);
+
+    assert_int_equal(5, vesc_serial_get_fault());
+}
+
+/**
+ * @brief Cheap accessor coverage - each getter just needs to reflect
+ * whatever was last decoded, asserted alongside the decode test's own
+ * battery_level assertion elsewhere; this covers the remaining getters
+ * directly against the module's true initial (zeroed) state.
+ */
+static void test_getters_reflect_initial_state(void **state)
+{
+    (void)state;
+
+    assert_int_equal(0, vesc_serial_get_duty_cycle());
+    assert_int_equal(0, vesc_serial_get_rpm());
+    assert_int_equal(0, vesc_serial_get_input_voltage());
+    assert_int_equal(0, vesc_serial_get_battery_level());
+    assert_int_equal(0, vesc_serial_get_fault());
+#ifdef ENABLE_IMU_EVENTS
+    assert_int_equal(0, vesc_serial_get_imu_pitch());
+    assert_int_equal(0, vesc_serial_get_imu_roll());
+#endif
+}
+
 const struct CMUnitTest vesc_serial_tests[] = {
     cmocka_unit_test_setup(test_vesc_serial_timer, vesc_serial_setup),
     cmocka_unit_test_setup(test_vesc_serial_timer_callback, vesc_serial_setup),
@@ -647,6 +908,12 @@ const struct CMUnitTest vesc_serial_tests[] = {
     cmocka_unit_test_setup(test_vesc_serial_comm_setup_decodes_values, vesc_serial_setup),
     cmocka_unit_test(test_vesc_serial_battery_lut_overrides_battery_level),
     cmocka_unit_test_setup(test_vesc_serial_app_integration, vesc_serial_setup),
+    cmocka_unit_test_setup(test_board_mode_change_riding_and_disabled_poll, vesc_serial_setup),
+    cmocka_unit_test_setup(test_board_mode_change_off_with_inactive_timer, vesc_serial_setup),
+    cmocka_unit_test_setup(test_tx_timer_faults_after_max_outstanding_packets, vesc_serial_setup),
+    cmocka_unit_test_setup(test_check_busy_and_set_callback, vesc_serial_setup),
+    cmocka_unit_test_setup(test_comm_setup_fault_changed, vesc_serial_setup),
+    cmocka_unit_test_setup(test_getters_reflect_initial_state, vesc_serial_setup),
 };
 
 #endif

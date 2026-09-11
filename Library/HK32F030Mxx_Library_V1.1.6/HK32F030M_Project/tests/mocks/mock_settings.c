@@ -31,6 +31,16 @@
 #include "status_leds.h"
 
 static settings_t mock_settings;
+static bool_t mock_settings_null_next = false;
+
+/**
+ * @brief Test helper: makes the next settings_get() call return NULL (as
+ * the real settings.c does when its lazy init fails), to exercise callers'
+ * null-check branches. Auto-clears after one use.
+ */
+void mock_settings_force_null_once(void) {
+    mock_settings_null_next = true;
+}
 
 lcm_status_t settings_init(void) {
     mock_settings.headlight_brightness = 1.0f;
@@ -52,7 +62,15 @@ void settings_save(void) {
     // Mock save function does nothing
 }
 
+void settings_reset(void) {
+    function_called();
+}
+
 settings_t *settings_get(void) {
+    if (mock_settings_null_next) {
+        mock_settings_null_next = false;
+        return NULL;
+    }
     return &mock_settings;
 }
 
