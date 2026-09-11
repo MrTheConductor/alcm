@@ -449,6 +449,11 @@ EVENT_HANDLER(headlights, state_change)
         }
         else
         {
+            // Restore full brightness before cancelling the flash - otherwise
+            // mode_control is left wherever the flash's square wave happened
+            // to be when interrupted, which can leave the headlights stuck
+            // dim/off until reboot
+            mode_control = 255U;
             headlights_set_mode_animation(HEADLIGHTS_MODE_ANIMATION_NONE);
         }
         break;
