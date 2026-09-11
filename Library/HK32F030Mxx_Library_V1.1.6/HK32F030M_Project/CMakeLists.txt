@@ -18,15 +18,24 @@ set(DOXYGEN_EXECUTABLE ${doxygen_SOURCE_DIR}/doxygen.exe)
 # Note: the installer ignores /D and always installs to Program Files
 # regardless of the directory requested, and - at least in the environment
 # this was verified in - does so without a UAC prompt even from a
-# non-elevated shell. That may not hold on every machine, so this is
-# best-effort: if the silent install doesn't go through (e.g. UAC declined),
-# the test_coverage target is simply skipped rather than failing the build.
+# non-elevated shell. That does NOT hold in every environment: on a CI
+# runner with no interactive desktop session (e.g. GitHub Actions), an
+# installer that needs to elevate can block forever with no UAC dialog to
+# ever satisfy, hanging the whole configure step. Guard against that two
+# ways: skip the attempt entirely on any recognized CI system (checking the
+# de-facto-standard CI=true env var, set by GitHub Actions and most other
+# CI providers), and cap the install itself with a timeout as a safety net
+# for any other non-interactive environment this doesn't anticipate. Either
+# way this is best-effort: if it doesn't go through, the test_coverage
+# target is simply skipped rather than failing the build.
 set(OPENCPPCOVERAGE_VERSION "0.9.9.0")
 find_program(OPENCPPCOVERAGE_EXECUTABLE OpenCppCoverage.exe
     PATHS "C:/Program Files/OpenCppCoverage"
 )
 
-if(NOT OPENCPPCOVERAGE_EXECUTABLE)
+if(NOT OPENCPPCOVERAGE_EXECUTABLE AND DEFINED ENV{CI})
+    message(STATUS "CI environment detected - skipping OpenCppCoverage auto-install (no interactive session to satisfy a UAC prompt) - the 'test_coverage' target will not be available")
+elseif(NOT OPENCPPCOVERAGE_EXECUTABLE)
     set(OPENCPPCOVERAGE_INSTALLER
         "${CMAKE_BINARY_DIR}/OpenCppCoverageSetup-x64-${OPENCPPCOVERAGE_VERSION}.exe")
     message(STATUS "OpenCppCoverage not found, downloading v${OPENCPPCOVERAGE_VERSION}...")
@@ -39,7 +48,14 @@ if(NOT OPENCPPCOVERAGE_EXECUTABLE)
 
     if(OPENCPPCOVERAGE_DOWNLOAD_CODE EQUAL 0)
         message(STATUS "Installing OpenCppCoverage silently...")
-        execute_process(COMMAND "${OPENCPPCOVERAGE_INSTALLER}" /S)
+        execute_process(
+            COMMAND "${OPENCPPCOVERAGE_INSTALLER}" /S
+            TIMEOUT 60
+            RESULT_VARIABLE OPENCPPCOVERAGE_INSTALL_RESULT
+        )
+        if(NOT OPENCPPCOVERAGE_INSTALL_RESULT EQUAL 0)
+            message(WARNING "OpenCppCoverage silent install timed out or failed (result: ${OPENCPPCOVERAGE_INSTALL_RESULT}) - it may be waiting on a UAC prompt with no one to answer it. The 'test_coverage' target will not be available; if this is an interactive machine, install it manually from https://github.com/OpenCppCoverage/OpenCppCoverage/releases and reconfigure.")
+        endif()
         find_program(OPENCPPCOVERAGE_EXECUTABLE OpenCppCoverage.exe
             PATHS "C:/Program Files/OpenCppCoverage"
         )
