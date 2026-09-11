@@ -5,9 +5,10 @@ build
 StatusBarSimulator
 **.orig
 **.hex
+**/build_test/
 
 # Python (tools/battery_lut_patch/)
-__pycache__/**
+**/__pycache__/
 *.pyc
 .pytest_cache/
 

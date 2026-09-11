@@ -24,6 +24,7 @@
 #include "function_generator.h"
 #include "footpads.h"
 #include "lcm_types.h"
+#include "button_driver_hw.h"
 
 /**
  * @brief Enumerates the adjustment types for the command processor
@@ -481,7 +482,19 @@ EVENT_HANDLER(command_processor, button)
  */
 EVENT_HANDLER(command_processor, board_mode)
 {
-    if (current_context != COMMAND_PROCESSOR_CONTEXT_DEFAULT && event == EVENT_BOARD_MODE_CHANGED &&
+    if (event == EVENT_BOARD_MODE_CHANGED &&
+        data->board_mode.previous_mode == BOARD_MODE_BOOTING &&
+        data->board_mode.mode == BOARD_MODE_IDLE &&
+        button_driver_hw_is_pressed())
+    {
+        // Factory reset gesture: button held through the booting->idle
+        // transition. Reset settings to defaults, then shut down so the
+        // user gets clear feedback (via the shutdown animation) that the
+        // reset happened.
+        settings_reset();
+        event_queue_push(EVENT_COMMAND_SHUTDOWN, NULL);
+    }
+    else if (current_context != COMMAND_PROCESSOR_CONTEXT_DEFAULT && event == EVENT_BOARD_MODE_CHANGED &&
         (data->board_mode.mode != BOARD_MODE_IDLE ||
          data->board_mode.submode != BOARD_SUBMODE_IDLE_CONFIG))
     {

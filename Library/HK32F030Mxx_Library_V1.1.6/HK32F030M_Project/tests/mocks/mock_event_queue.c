@@ -151,3 +151,12 @@ int validate_battery_level_event_data(const uintmax_t data, const uintmax_t chec
     assert_int_equal(received_data->battery_level, *expected_battery_level);
     return 1;
 }
+
+int validate_click_count_event_data(const uintmax_t data, const uintmax_t check_data)
+{
+    const event_data_t *received_data = (const event_data_t *)(uintptr_t)data;
+    const uint8_t *expected_click_count = (const uint8_t *)(uintptr_t)check_data;
+
+    assert_int_equal(received_data->click_count, *expected_click_count);
+    return 1;
+}

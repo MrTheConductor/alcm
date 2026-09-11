@@ -29,5 +29,6 @@ int validate_footpads_state(const uintmax_t data, const uintmax_t check_data);
 int validate_board_mode_event_data(const uintmax_t data, const uintmax_t check_data);
 int validate_context_event_data(const uintmax_t data, const uintmax_t check_data);
 int validate_battery_level_event_data(const uintmax_t data, const uintmax_t check_data);
+int validate_click_count_event_data(const uintmax_t data, const uintmax_t check_data);
 
 #endif

@@ -925,6 +925,30 @@ void status_leds_disable_lights_callback(void)
 EVENT_HANDLER(status_leds, state_changed)
 {
     bool_t leds_enabled = status_leds_settings->enable_status_leds;
+    board_mode_t current_mode = board_mode_get();
+    bool_t is_config =
+        (current_mode == BOARD_MODE_IDLE) && (board_submode_get() == BOARD_SUBMODE_IDLE_CONFIG);
+
+    if (event == EVENT_BOARD_MODE_CHANGED)
+    {
+        // Configuration mode is confusing to navigate with no visible
+        // feedback, so the status LEDs are forced on for its duration
+        // regardless of the user's enable_status_leds setting, then restored
+        // to that setting on exit
+        if (is_config)
+        {
+            status_leds_hw_enable(true);
+        }
+        else if ((data->board_mode.previous_mode == BOARD_MODE_IDLE) &&
+                 (data->board_mode.previous_submode == BOARD_SUBMODE_IDLE_CONFIG))
+        {
+            status_leds_hw_enable(leds_enabled);
+        }
+    }
+
+    // The config-mode indicator must stay visible even if status LEDs are
+    // otherwise disabled by the user
+    leds_enabled = leds_enabled || is_config;
 
 #ifdef ENABLE_APP_INTEGRATION
     if (event == EVENT_BOARD_MODE_CHANGED)
@@ -944,7 +968,7 @@ EVENT_HANDLER(status_leds, state_changed)
 
     // The locked indicator must stay visible even if status LEDs are
     // otherwise disabled by the user
-    leds_enabled = leds_enabled || (board_mode_get() == BOARD_MODE_DISABLED);
+    leds_enabled = leds_enabled || (current_mode == BOARD_MODE_DISABLED);
 #endif
 
     if (leds_enabled)

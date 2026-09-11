@@ -53,6 +53,11 @@ lcm_status_t settings_init(void);
 void settings_save(void);
 
 /**
+ * @brief Reset the settings to their default values and save them.
+ */
+void settings_reset(void);
+
+/**
  * @brief Get a pointer to the current settings.
  * @return Pointer to the current settings.
  */

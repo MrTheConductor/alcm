@@ -79,6 +79,68 @@ target_link_libraries(test_board_mode PRIVATE board_mode cmocka)
 # Enable testing and add test
 add_test(NAME BoardModeTest COMMAND test_board_mode)
 
+# Add test executable for hysteresis
+add_executable(test_hysteresis
+    hysteresis_main.c
+    )
+
+target_link_libraries(test_hysteresis PRIVATE hysteresis cmocka)
+
+# Enable testing and add test
+add_test(NAME HysteresisTest COMMAND test_hysteresis)
+
+# Add test executable for button_events
+add_executable(test_button_events
+    button_events_main.c
+    mocks/mock_event_queue.c
+    mocks/mock_timer.c
+    )
+
+target_link_libraries(test_button_events PRIVATE button_events cmocka)
+
+# Enable testing and add test
+add_test(NAME ButtonEventsTest COMMAND test_button_events)
+
+# Add test executable for button_driver
+add_executable(test_button_driver
+    button_driver_main.c
+    mocks/mock_event_queue.c
+    mocks/mock_timer.c
+    mocks/mock_button_driver_hw.c
+    )
+
+target_link_libraries(test_button_driver PRIVATE button_driver cmocka)
+
+# Enable testing and add test
+add_test(NAME ButtonDriverTest COMMAND test_button_driver)
+
+# Add test executable for settings
+add_executable(test_settings
+    settings_main.c
+    mocks/mock_eeprom.c
+    mocks/mock_event_queue.c
+    )
+
+target_link_libraries(test_settings PRIVATE settings cmocka)
+
+# Enable testing and add test
+add_test(NAME SettingsTest COMMAND test_settings)
+
+# Add test executable for command_processor
+add_executable(test_command_processor
+    command_processor_main.c
+    mocks/mock_event_queue.c
+    mocks/mock_timer.c
+    mocks/mock_board_mode.c
+    mocks/mock_settings.c
+    mocks/mock_button_driver_hw.c
+    )
+
+target_link_libraries(test_command_processor PRIVATE command_processor cmocka)
+
+# Enable testing and add test
+add_test(NAME CommandProcessorTest COMMAND test_command_processor)
+
 # Add test executable for mocked components
 add_executable(test_alcm
     mocks/mock_board_mode.c

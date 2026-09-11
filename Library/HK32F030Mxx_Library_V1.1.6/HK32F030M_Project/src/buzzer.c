@@ -220,6 +220,20 @@ EVENT_HANDLER(buzzer, board_mode)
     inhibited_button_held = false;
 #endif
 
+    // Configuration mode is confusing to navigate with no audible feedback,
+    // so the beeper is forced on for its duration regardless of the user's
+    // enable_beep setting, then restored to that setting on exit
+    if ((data->board_mode.mode == BOARD_MODE_IDLE) &&
+        (data->board_mode.submode == BOARD_SUBMODE_IDLE_CONFIG))
+    {
+        buzzer_hw_enable(true);
+    }
+    else if ((data->board_mode.previous_mode == BOARD_MODE_IDLE) &&
+             (data->board_mode.previous_submode == BOARD_SUBMODE_IDLE_CONFIG))
+    {
+        buzzer_hw_enable(buzzer_settings->enable_beep);
+    }
+
     switch (data->board_mode.mode)
     {
     case BOARD_MODE_IDLE:

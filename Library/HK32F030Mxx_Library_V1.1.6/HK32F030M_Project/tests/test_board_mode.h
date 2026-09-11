@@ -561,6 +561,156 @@ void test_board_mode_rpm(void **state)
     stop_riding();
 }
 
+/**
+ * @brief EVENT_BUTTON_DOWN is subscribed but only ever dispatched (in the
+ * existing tests) while off/idle/riding, where it's a no-op - in
+ * BOARD_MODE_FAULT specifically, it kills power immediately.
+ */
+void test_board_mode_button_down_in_fault_kills_immediately(void **state)
+{
+    (void)state;
+    trigger_emergency_fault(); // -> FAULT/FAULT_INTERNAL
+
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    board_mode_event_data_t expected_state = {0};
+    expected_state.mode = BOARD_MODE_OFF;
+    expected_state.submode = BOARD_SUBMODE_UNDEFINED;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                (uintmax_t)&expected_state);
+
+    event_data_t data = {0};
+    event_queue_call_mocked_callback(EVENT_BUTTON_DOWN, &data);
+
+    assert_int_equal(board_mode_get(), BOARD_MODE_OFF);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_UNDEFINED);
+}
+
+/**
+ * @brief EVENT_IMU_ROLL_CHANGED is subscribed but never dispatched by any
+ * other test - a large roll while idle/active transitions to dozing, and
+ * recovering (roll back under the reset threshold) returns to active.
+ */
+void test_board_mode_imu_roll_dozing_and_recovery(void **state)
+{
+    (void)state;
+    board_mode_to_idle(); // -> IDLE/ACTIVE
+
+    // Past the set threshold (45000 millidegrees) -> dozing.
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    board_mode_event_data_t expected_state = {0};
+    expected_state.mode = BOARD_MODE_IDLE;
+    expected_state.submode = BOARD_SUBMODE_IDLE_DOZING;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                (uintmax_t)&expected_state);
+    expect_any(set_timer, timeout);
+    expect_any(set_timer, callback);
+    expect_any(set_timer, repeat);
+
+    event_data_t data = {0};
+    data.imu_roll = 50000;
+    event_queue_call_mocked_callback(EVENT_IMU_ROLL_CHANGED, &data);
+    assert_int_equal(board_mode_get(), BOARD_MODE_IDLE);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_IDLE_DOZING);
+
+    // Back under the reset threshold (40000) -> active again.
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    expected_state.mode = BOARD_MODE_IDLE;
+    expected_state.submode = BOARD_SUBMODE_IDLE_ACTIVE;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                (uintmax_t)&expected_state);
+    expect_any(set_timer, timeout);
+    expect_any(set_timer, callback);
+    expect_any(set_timer, repeat);
+
+    data.imu_roll = 10000;
+    event_queue_call_mocked_callback(EVENT_IMU_ROLL_CHANGED, &data);
+    assert_int_equal(board_mode_get(), BOARD_MODE_IDLE);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_IDLE_ACTIVE);
+}
+
+/**
+ * @brief EVENT_VESC_LOCKED_CHANGED is subscribed but never dispatched by
+ * any other test - locking transitions unconditionally to DISABLED, and
+ * unlocking returns to IDLE/ACTIVE only if still disabled.
+ */
+void test_board_mode_vesc_locked(void **state)
+{
+    (void)state;
+    board_mode_to_idle(); // -> IDLE/ACTIVE, idle timer running
+
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    board_mode_event_data_t expected_state = {0};
+    expected_state.mode = BOARD_MODE_DISABLED;
+    expected_state.submode = BOARD_SUBMODE_UNDEFINED;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                (uintmax_t)&expected_state);
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, true);
+    expect_any(cancel_timer, timer_id);
+    will_return(cancel_timer, LCM_SUCCESS);
+
+    event_data_t data = {0};
+    data.enable = true;
+    event_queue_call_mocked_callback(EVENT_VESC_LOCKED_CHANGED, &data);
+    assert_int_equal(board_mode_get(), BOARD_MODE_DISABLED);
+
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    expected_state.mode = BOARD_MODE_IDLE;
+    expected_state.submode = BOARD_SUBMODE_IDLE_ACTIVE;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                (uintmax_t)&expected_state);
+    expect_any(set_timer, timeout);
+    expect_any(set_timer, callback);
+    expect_any(set_timer, repeat);
+
+    data.enable = false;
+    event_queue_call_mocked_callback(EVENT_VESC_LOCKED_CHANGED, &data);
+    assert_int_equal(board_mode_get(), BOARD_MODE_IDLE);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_IDLE_ACTIVE);
+}
+
+/**
+ * @brief EVENT_VESC_FAULT_CHANGED's clearing branch (vesc_fault == 0 ->
+ * back to IDLE/ACTIVE) is never exercised elsewhere - every other test
+ * either never dispatches this event or only sets a nonzero fault.
+ */
+void test_board_mode_vesc_fault_changed_set_and_clear(void **state)
+{
+    (void)state;
+    board_mode_to_idle(); // -> IDLE/ACTIVE, idle timer running
+
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    board_mode_event_data_t expected_state = {0};
+    expected_state.mode = BOARD_MODE_FAULT;
+    expected_state.submode = BOARD_SUBMODE_FAULT_VESC;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                (uintmax_t)&expected_state);
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, true);
+    expect_any(cancel_timer, timer_id);
+    will_return(cancel_timer, LCM_SUCCESS);
+
+    event_data_t data = {0};
+    data.vesc_fault = 1;
+    event_queue_call_mocked_callback(EVENT_VESC_FAULT_CHANGED, &data);
+    assert_int_equal(board_mode_get(), BOARD_MODE_FAULT);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_FAULT_VESC);
+
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    expected_state.mode = BOARD_MODE_IDLE;
+    expected_state.submode = BOARD_SUBMODE_IDLE_ACTIVE;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                (uintmax_t)&expected_state);
+    expect_any(set_timer, timeout);
+    expect_any(set_timer, callback);
+    expect_any(set_timer, repeat);
+
+    data.vesc_fault = 0;
+    event_queue_call_mocked_callback(EVENT_VESC_FAULT_CHANGED, &data);
+    assert_int_equal(board_mode_get(), BOARD_MODE_IDLE);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_IDLE_ACTIVE);
+}
+
 const struct CMUnitTest board_mode_tests[] = {
     cmocka_unit_test_setup(test_board_mode_init, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_boot, board_mode_setup),
@@ -570,6 +720,10 @@ const struct CMUnitTest board_mode_tests[] = {
     cmocka_unit_test_setup(test_board_mode_emergency_fault, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_duty_cycle, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_rpm, board_mode_setup),
+    cmocka_unit_test_setup(test_board_mode_button_down_in_fault_kills_immediately, board_mode_setup),
+    cmocka_unit_test_setup(test_board_mode_imu_roll_dozing_and_recovery, board_mode_setup),
+    cmocka_unit_test_setup(test_board_mode_vesc_locked, board_mode_setup),
+    cmocka_unit_test_setup(test_board_mode_vesc_fault_changed_set_and_clear, board_mode_setup),
 };
 
 #endif
