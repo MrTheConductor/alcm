@@ -529,7 +529,7 @@ void gradient_fill(status_leds_color_t *buffer, color_animation_t *color_animati
 
     for (uint8_t idx = 0; idx < count; idx++)
     {
-        uint8_t i = first_led + step * idx;
+        uint8_t i = (uint8_t)(first_led + step * idx);
         if (LCM_SUCCESS != function_generator_peek_sample(&(color_animation->fg), &h, idx))
         {
             fault(EMERGENCY_FAULT_INVALID_ARGUMENT);
