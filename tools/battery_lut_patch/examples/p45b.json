@@ -1,0 +1,16 @@
+{
+  "_description": "Molicel INR21700-P45B. Curve provided by Dado (community-sourced). Unlike floatwheel's task.c tables, the 100% point is a resting full-charge voltage (4.14V/cell), not the 4.2V charge voltage - packs above it just read 100%. Use --cell-count to match your actual pack.",
+  "breakpoints": [
+    {"cell_mv": 4140, "percent": 100.0},
+    {"cell_mv": 4080, "percent": 90.0},
+    {"cell_mv": 4000, "percent": 80.0},
+    {"cell_mv": 3910, "percent": 70.0},
+    {"cell_mv": 3820, "percent": 60.0},
+    {"cell_mv": 3730, "percent": 50.0},
+    {"cell_mv": 3640, "percent": 40.0},
+    {"cell_mv": 3560, "percent": 30.0},
+    {"cell_mv": 3450, "percent": 20.0},
+    {"cell_mv": 3230, "percent": 10.0},
+    {"cell_mv": 2900, "percent": 0.0}
+  ]
+}
