@@ -1,0 +1,16 @@
+{
+  "_description": "Molicel INR18650-P28A. Curve digitized from lygte-info.dk's 0.2A (near-rest) discharge curve, 10% steps of measured capacity with 3.0V/cell as empty; values are approx +/-10mV. The 100% point is the cell's initial voltage under that light load, not the 4.2V charge voltage - packs above it just read 100%. Replaces a community-provided curve (from Dado), which agreed within ~30mV. Use --cell-count to match your actual pack.",
+  "breakpoints": [
+    {"cell_mv": 4133, "percent": 100.0},
+    {"cell_mv": 4061, "percent": 90.0},
+    {"cell_mv": 4007, "percent": 80.0},
+    {"cell_mv": 3902, "percent": 70.0},
+    {"cell_mv": 3814, "percent": 60.0},
+    {"cell_mv": 3723, "percent": 50.0},
+    {"cell_mv": 3642, "percent": 40.0},
+    {"cell_mv": 3570, "percent": 30.0},
+    {"cell_mv": 3465, "percent": 20.0},
+    {"cell_mv": 3339, "percent": 10.0},
+    {"cell_mv": 3007, "percent": 0.0}
+  ]
+}

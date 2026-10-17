@@ -1,16 +1,16 @@
 {
-  "_description": "Sony/Murata US18650VTC6. Transcribed from floatwheel's own CheckPowerLevel() battVoltages_mv table (floatwheel/LCM/Code/App/task.c, #ifdef VTC6). Seen paired with BATTERY_STRING=15 (PintV and XRV boards) in floatwheel's own build defines - use --cell-count to match your actual pack, don't assume 15S.",
+  "_description": "Sony/Murata US18650VTC6. Curve digitized from lygte-info.dk's 0.2A (near-rest) discharge curve, 10% steps of measured capacity with 3.0V/cell as empty; values are approx +/-10mV. The 100% point is the cell's initial voltage under that light load, not the 4.2V charge voltage - packs above it just read 100%. Replaces floatwheel's task.c table, which agreed within ~25mV. floatwheel pairs this cell with BATTERY_STRING=15 (PintV and XRV boards) - use --cell-count to match your actual pack, don't assume 15S.",
   "breakpoints": [
-    {"cell_mv": 4200, "percent": 100.0},
-    {"cell_mv": 4064, "percent": 90.0},
-    {"cell_mv": 4015, "percent": 80.0},
-    {"cell_mv": 3895, "percent": 70.0},
-    {"cell_mv": 3821, "percent": 60.0},
-    {"cell_mv": 3745, "percent": 50.0},
-    {"cell_mv": 3655, "percent": 40.0},
-    {"cell_mv": 3559, "percent": 30.0},
-    {"cell_mv": 3459, "percent": 20.0},
-    {"cell_mv": 3292, "percent": 10.0},
-    {"cell_mv": 3000, "percent": 0.0}
+    {"cell_mv": 4169, "percent": 100.0},
+    {"cell_mv": 4076, "percent": 90.0},
+    {"cell_mv": 4030, "percent": 80.0},
+    {"cell_mv": 3918, "percent": 70.0},
+    {"cell_mv": 3828, "percent": 60.0},
+    {"cell_mv": 3751, "percent": 50.0},
+    {"cell_mv": 3659, "percent": 40.0},
+    {"cell_mv": 3551, "percent": 30.0},
+    {"cell_mv": 3446, "percent": 20.0},
+    {"cell_mv": 3251, "percent": 10.0},
+    {"cell_mv": 3005, "percent": 0.0}
   ]
 }
