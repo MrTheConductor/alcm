@@ -59,7 +59,7 @@
 #define EVENT_QUEUE_SIZE 8U   // Maximum number of events in the queue
 // Overflow subscriber slots, used only by events with more than one
 // subscriber (each event's first subscriber lives in a dedicated head slot).
-// Currently all 21 are in use (48 subscriptions across 27 distinct events);
+// Currently all 21 are in use (49 subscriptions across 28 distinct events);
 // exceeding this faults loudly at init with EMERGENCY_FAULT_OVERFLOW.
 #define MAX_SUBSCRIPTIONS 21U
 #define MAX_TIMERS 8U         // Maximum number of system timers
@@ -82,7 +82,7 @@
 // They can be disabled to save code space or if there's no status LEDs on the
 // board like an XR.
 #define ENABLE_STATUS_LEDS 1                      // Enable the status LEDs
-#define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (1000U) // Time to fade to black when shutting down
+#define STATUS_LEDS_FADE_TO_BLACK_TIMEOUT (750U)  // Time to fade to black when shutting down
 #define LOW_BATTERY_THRESHOLD (150)               // Threshold for yellow/always on indicator (tenths of a %)
 #define CRITICAL_BATTERY_THRESHOLD (50)           // Threshold for red flashing indicator (tenths of a %)
 #define STATUS_LEDS_SCAN_SPEED (2000U)            // Speed of the scan animation (ms)

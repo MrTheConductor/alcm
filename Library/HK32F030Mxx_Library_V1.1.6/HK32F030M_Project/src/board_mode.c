@@ -25,6 +25,7 @@
 #include "timer.h"
 #include "config.h"
 #include "hysteresis.h"
+#include "settings.h"
 
 // Forward declarations
 EVENT_HANDLER(board_mode, command);
@@ -389,6 +390,8 @@ void update_riding_submode()
 {
     int16_t duty_cycle = vesc_serial_get_duty_cycle();
     int32_t rpm = vesc_serial_get_rpm();
+    // Not NULL: command_processor_init() runs first and aborts startup if it is
+    bool_t duty_alerts_enabled = settings_get()->enable_duty_alerts;
 
 #ifdef ENABLE_IMU_EVENTS
     if (roll_hysteresis.state == STATE_SET)
@@ -399,8 +402,13 @@ void update_riding_submode()
     }
 #endif
 
-    // Set the submode based on the duty cycle and RPM
-    if (apply_hysteresis(&danger_hysteresis, duty_cycle) == STATE_SET)
+    // Set the submode based on the duty cycle and RPM. The hysteresis always
+    // runs so its state stays current if duty alerts are re-enabled. With
+    // alerts off, danger is skipped so the alarm never sounds and no submode
+    // change disturbs the display at the threshold. Toggling alerts takes
+    // effect on the next duty cycle or RPM update.
+    if ((apply_hysteresis(&danger_hysteresis, duty_cycle) == STATE_SET) &&
+        duty_alerts_enabled)
     {
         if (board_submode != BOARD_SUBMODE_RIDING_DANGER)
         {

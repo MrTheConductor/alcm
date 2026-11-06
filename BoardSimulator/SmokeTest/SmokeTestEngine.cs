@@ -101,6 +101,7 @@ class SmokeTestEngine : IDisposable
 
     public void SetFootpadVoltages(float left, float right) => _alcm.SetFootpadVoltages(left, right);
     public void SetRpm(int rpm)              => _vesc.Rpm = rpm;
+    public void SetDutyCycle(float duty)     => _vesc.DutyCycle = duty;
     public void SetBatteryVoltage(float v)   => _vesc.InputVoltage = v;
     public void SetButtonState(bool pressed) => _alcm.SetButtonState(pressed);
     public void SetImuPitch(float degrees)   => _vesc.ImuPitch = degrees;

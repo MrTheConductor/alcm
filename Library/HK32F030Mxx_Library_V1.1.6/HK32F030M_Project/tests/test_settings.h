@@ -77,6 +77,7 @@ static void test_settings_init_from_blank_eeprom_resets_to_defaults(void **state
     assert_true(s->enable_beep);
     assert_true(s->enable_headlights);
     assert_true(s->enable_status_leds);
+    assert_true(s->enable_duty_alerts);
     assert_int_equal(ANIMATION_OPTION_FLOATWHEEL_CLASSIC, s->boot_animation);
     assert_int_equal(ANIMATION_OPTION_NONE, s->idle_animation);
     assert_int_equal(ANIMATION_OPTION_NONE, s->dozing_animation);
@@ -129,6 +130,25 @@ static void test_settings_init_loads_previously_saved_values(void **state)
     // fake EEPROM contents back, which are still self-consistent.
     assert_int_equal(LCM_SUCCESS, init_from_blank_eeprom_reread());
     assert_int_equal(99U, settings_get()->personal_color);
+}
+
+/**
+ * @brief The duty alerts choice survives a save and reboot, and a factory
+ * reset turns alerts back on.
+ */
+static void test_settings_duty_alerts_persist_until_reset(void **state)
+{
+    (void)state;
+
+    assert_int_equal(LCM_SUCCESS, init_from_blank_eeprom());
+    settings_get()->enable_duty_alerts = false;
+    settings_save();
+
+    assert_int_equal(LCM_SUCCESS, init_from_blank_eeprom_reread());
+    assert_false(settings_get()->enable_duty_alerts);
+
+    settings_reset();
+    assert_true(settings_get()->enable_duty_alerts);
 }
 
 /**
@@ -263,6 +283,7 @@ static const struct CMUnitTest settings_tests[] = {
     cmocka_unit_test(test_settings_init_from_blank_eeprom_resets_to_defaults),
     cmocka_unit_test(test_settings_reset_direct),
     cmocka_unit_test(test_settings_init_loads_previously_saved_values),
+    cmocka_unit_test(test_settings_duty_alerts_persist_until_reset),
     cmocka_unit_test(test_settings_init_invalid_range_forces_reset),
     cmocka_unit_test(test_settings_range_check_branches),
     cmocka_unit_test(test_settings_save_skips_write_when_unchanged),

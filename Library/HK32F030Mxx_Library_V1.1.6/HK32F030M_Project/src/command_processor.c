@@ -423,6 +423,13 @@ void command_processor_default_handler(event_type_t event, const event_data_t *d
             event_queue_push(EVENT_COMMAND_TOGGLE_BEEPER, NULL);
             event_queue_push(EVENT_COMMAND_ACK, NULL);
             break;
+        case 4:
+            // Click-click-click-click: toggle the duty cycle gauge and alarm
+            command_processor_settings->enable_duty_alerts =
+                !command_processor_settings->enable_duty_alerts;
+            event_queue_push(EVENT_COMMAND_TOGGLE_DUTY_ALERTS, NULL);
+            event_queue_push(EVENT_COMMAND_ACK, NULL);
+            break;
         default:
             event_queue_push(EVENT_COMMAND_NACK, NULL);
             break;
