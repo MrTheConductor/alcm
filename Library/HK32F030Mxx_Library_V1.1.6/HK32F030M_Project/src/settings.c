@@ -36,7 +36,11 @@
 // byte-content-only, agnostic to how the bytes are now interpreted), so the
 // magic bump is what forces a reset to defaults instead of silently
 // reinterpreting old float bit patterns as the new integer types.
-#define MAGIC_NUMBER 0xbeef0002
+//
+// Bumped from 0xbeef0002: enable_duty_alerts added, which moves the stored CRC.
+// A stale blob would almost always fail the CRC check anyway; the bump makes
+// the reset to defaults deterministic.
+#define MAGIC_NUMBER 0xbeef0003
 
 /**
  * @brief      Structure to represent the settings in the EEPROM.
@@ -71,6 +75,7 @@ void settings_reset(void)
     eeprom.settings.enable_beep = true;
     eeprom.settings.enable_headlights = true;
     eeprom.settings.enable_status_leds = true;
+    eeprom.settings.enable_duty_alerts = true;
     eeprom.settings.boot_animation = ANIMATION_OPTION_FLOATWHEEL_CLASSIC;
     eeprom.settings.idle_animation = ANIMATION_OPTION_NONE;
     eeprom.settings.dozing_animation = ANIMATION_OPTION_NONE;
@@ -116,7 +121,9 @@ bool_t settings_range_check(void)
              (eeprom.settings.enable_headlights != true &&
               eeprom.settings.enable_headlights != false) ||
              (eeprom.settings.enable_status_leds != true &&
-              eeprom.settings.enable_status_leds != false))
+              eeprom.settings.enable_status_leds != false) ||
+             (eeprom.settings.enable_duty_alerts != true &&
+              eeprom.settings.enable_duty_alerts != false))
     {
         valid = false;
     }

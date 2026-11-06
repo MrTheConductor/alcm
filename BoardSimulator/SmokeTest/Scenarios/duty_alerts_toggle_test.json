@@ -1,0 +1,181 @@
+{
+  // ─────────────────────────────────────────────────────────────────────────
+  // ALCM Duty Alerts Toggle Smoke Test
+  //
+  // Drives real button presses through button_driver → button_events →
+  // command_processor, then checks the danger alarm at the buzzer output.
+  // Also confirms the firmware still initializes with the new event
+  // subscribed, since the subscriber table is full.
+  //
+  // See boot_test.json for the general scenario format reference. This
+  // scenario additionally uses:
+  //   "inject": "duty_cycle" (float, percent) — the simulated VESC duty cycle.
+  //
+  // A toggle takes effect on the next telemetry change, so each toggle is
+  // followed by a small duty cycle change.
+  //
+  // Nothing here shuts the board down, so settings are never saved and the
+  // toggles don't leak into later runs through alcm_eeprom.bin.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  "name": "ALCM Duty Alerts Toggle Smoke Test",
+  "description": "Confirms the 4-click gesture silences and restores the danger alarm, including when toggled while the alarm is already sounding.",
+
+  "vesc": {
+    "battery_voltage": 58.8
+  },
+
+  "steps": [
+
+    // ─── Phase 1: Boot and start riding ────────────────────────────────────
+
+    {
+      "phase": "Boot and ride",
+      "type": "await",
+      "name": "Power latch engaged",
+      "event": "power",
+      "where": { "enabled": true },
+      "timeout_ms": 500
+    },
+    {
+      "type": "await",
+      "name": "VESC communication active",
+      "event": "vesc_request",
+      "timeout_ms": 3000
+    },
+    {
+      "type": "inject",
+      "name": "both footpads at 3.0V, RPM = 3000",
+      "footpad_left_v": 3.0,
+      "footpad_right_v": 3.0,
+      "rpm": 3000
+    },
+    { "type": "run_for", "name": "settle into riding", "duration_ms": 1000 },
+
+    // ─── Phase 2: Baseline, alerts on by default ───────────────────────────
+
+    { "phase": "Alerts on (default)", "type": "inject", "name": "duty 95%", "duty_cycle": 95 },
+    {
+      "type": "run_for",
+      "name": "alarm should sound",
+      "duration_ms": 1000,
+      "checks": [
+        {
+          "name": "Danger alarm sounds",
+          "assert_count_gte": { "event": "buzzer", "count": 2 }
+        }
+      ]
+    },
+    { "type": "inject", "name": "duty 10%", "duty_cycle": 10 },
+    { "type": "run_for", "name": "leave danger", "duration_ms": 500 },
+
+    // ─── Phase 3: 4-click gesture turns alerts off ─────────────────────────
+
+    { "phase": "4 clicks: alerts off", "type": "inject", "name": "click 1 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 1 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 2 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 2 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 3 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 3 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 4 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 4 up", "button_pressed": false },
+    {
+      "type": "run_for",
+      "name": "gesture recognized, ACK plays",
+      "duration_ms": 800,
+      "checks": [
+        {
+          "name": "Gesture acknowledged with a beep",
+          "assert_count_gte": { "event": "buzzer", "count": 1 }
+        }
+      ]
+    },
+    { "type": "inject", "name": "duty 95%", "duty_cycle": 95 },
+    {
+      "type": "run_for",
+      "name": "alarm should stay silent",
+      "duration_ms": 1000,
+      "checks": [
+        {
+          "name": "No alarm at 95% with alerts off",
+          "assert_no": { "event": "buzzer" }
+        }
+      ]
+    },
+
+    // ─── Phase 4: 4-click gesture at 95% turns alerts back on ──────────────
+
+    { "phase": "4 clicks at 95%: alerts on", "type": "inject", "name": "click 1 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 1 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 2 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 2 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 3 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 3 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 4 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 4 up", "button_pressed": false },
+    { "type": "run_for", "name": "gesture recognized, ACK plays", "duration_ms": 800 },
+    { "type": "inject", "name": "duty 96%", "duty_cycle": 96 },
+    {
+      "type": "run_for",
+      "name": "alarm should resume",
+      "duration_ms": 1000,
+      "checks": [
+        {
+          "name": "Danger alarm resumes",
+          "assert_count_gte": { "event": "buzzer", "count": 2 }
+        }
+      ]
+    },
+
+    // ─── Phase 5: 4-click gesture while the alarm is sounding ──────────────
+    // The board stays in RIDING_DANGER with alerts off until the next
+    // telemetry change. Duty is held steady past the end of the feedback fade
+    // so the display redraws in that state, which would fault status_leds if
+    // it weren't handled. A fault starts a repeating buzzer sequence, so the
+    // silence check below catches it.
+
+    { "phase": "4 clicks during alarm: alerts off", "type": "inject", "name": "click 1 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 1 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 2 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 2 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 3 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 3 up", "button_pressed": false },
+    { "type": "run_for", "name": "gap", "duration_ms": 100 },
+    { "type": "inject", "name": "click 4 down", "button_pressed": true },
+    { "type": "run_for", "name": "hold", "duration_ms": 50 },
+    { "type": "inject", "name": "click 4 up", "button_pressed": false },
+    { "type": "run_for", "name": "gesture recognized, feedback fade finishes", "duration_ms": 1500 },
+    { "type": "inject", "name": "duty 97%", "duty_cycle": 97 },
+    { "type": "run_for", "name": "ACK and alarm finish", "duration_ms": 500 },
+    {
+      "type": "run_for",
+      "name": "alarm should be silenced",
+      "duration_ms": 1000,
+      "checks": [
+        {
+          "name": "Alarm silenced with no fault",
+          "assert_no": { "event": "buzzer" }
+        }
+      ]
+    }
+  ]
+}

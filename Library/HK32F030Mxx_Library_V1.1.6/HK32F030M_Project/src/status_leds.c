@@ -115,6 +115,7 @@ lcm_status_t status_leds_init(void)
         SUBSCRIBE_EVENT(status_leds, EVENT_DUTY_CYCLE_CHANGED, state_changed);
         SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_TOGGLE_LIGHTS, command);
         SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_TOGGLE_BEEPER, command);
+        SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_TOGGLE_DUTY_ALERTS, command);
         SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_CONTEXT_CHANGED, command);
         SUBSCRIBE_EVENT(status_leds, EVENT_COMMAND_SETTINGS_CHANGED, command);
     }
@@ -449,7 +450,7 @@ void display_footpad(footpads_state_t footpad)
     }
 }
 
-void status_leds_disable_beeper_callback(void)
+void status_leds_toggle_feedback_callback(void)
 {
     update_display(EVENT_COMMAND_TOGGLE_BEEPER);
 }
@@ -807,10 +808,9 @@ void update_display(event_type_t event)
         // Duty cycle takes priority over the RPM-driven submodes below: once
         // it crosses the gauge threshold, show a proportional bar (green,
         // turning red at the danger threshold) instead of the normal
-        // battery/ride display. BOARD_SUBMODE_RIDING_DANGER's hysteresis
-        // floor is always above the gauge threshold, so that submode is
-        // always covered by this branch.
-        if (duty_cycle >= DUTY_CYCLE_GAUGE_THRESHOLD)
+        // battery/ride display, unless the rider has disabled duty alerts.
+        if (status_leds_settings->enable_duty_alerts &&
+            (duty_cycle >= DUTY_CYCLE_GAUGE_THRESHOLD))
         {
             display_duty_cycle(duty_cycle);
         }
@@ -818,6 +818,11 @@ void update_display(event_type_t event)
         {
             switch (board_submode_get())
             {
+            case BOARD_SUBMODE_RIDING_DANGER:
+                // Only reachable just after duty alerts are disabled while in
+                // danger, until board_mode's next update leaves this submode.
+                // Must not fall to the default fault below.
+                // Fall through intentional
             case BOARD_SUBMODE_RIDING_NORMAL:
                 status_leds_handle_riding_normal(event);
                 break;
@@ -986,6 +991,34 @@ EVENT_HANDLER(status_leds, state_changed)
     // No else needed, status LEDs are disabled
 }
 
+/**
+ * @brief Sets every status LED to a color, then fades to black.
+ *
+ * Used to give the rider brief visual feedback for a command.
+ *
+ * @param color The color to flash.
+ * @param callback Called once the fade completes.
+ */
+static void status_leds_flash(const status_leds_color_t *color, animation_callback_t callback)
+{
+    if (LCM_SUCCESS != status_leds_set_color(color, 0U, STATUS_LEDS_COUNT - 1U))
+    {
+        fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
+    }
+    fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT, callback);
+}
+
+/**
+ * @brief Flashes the state a setting was just toggled to, so the rider can
+ * tell which one they landed in: green for on, red for off.
+ *
+ * @param enabled The setting's new state.
+ */
+static void status_leds_flash_toggle(bool_t enabled)
+{
+    status_leds_flash(enabled ? &colors.green : &colors.red, status_leds_toggle_feedback_callback);
+}
+
 EVENT_HANDLER(status_leds, command)
 {
     switch (event)
@@ -1004,15 +1037,10 @@ EVENT_HANDLER(status_leds, command)
         }
         break;
     case EVENT_COMMAND_TOGGLE_BEEPER:
-        if (!status_leds_settings->enable_beep)
-        {
-            if (LCM_SUCCESS != status_leds_set_color(&colors.red, 0U, STATUS_LEDS_COUNT - 1U))
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT,
-                                 status_leds_disable_beeper_callback);
-        }
+        status_leds_flash_toggle(status_leds_settings->enable_beep);
+        break;
+    case EVENT_COMMAND_TOGGLE_DUTY_ALERTS:
+        status_leds_flash_toggle(status_leds_settings->enable_duty_alerts);
         break;
     case EVENT_COMMAND_CONTEXT_CHANGED:
         // When the context changes, briefly flash a unique color on the status
@@ -1020,59 +1048,25 @@ EVENT_HANDLER(status_leds, command)
         switch (data->context)
         {
         case COMMAND_PROCESSOR_CONTEXT_BOOT_ANIMATION:
-            if (LCM_SUCCESS !=
-                status_leds_set_color(&colors.light_blue, 0U, STATUS_LEDS_COUNT - 1U))
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT,
-                                 status_leds_boot_callback);
+            status_leds_flash(&colors.light_blue, status_leds_boot_callback);
             break;
         case COMMAND_PROCESSOR_CONTEXT_IDLE_ANIMATION:
-            if (LCM_SUCCESS != status_leds_set_color(&colors.green, 0U, STATUS_LEDS_COUNT - 1U))
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT,
-                                 status_leds_idle_default_callback);
+            status_leds_flash(&colors.green, status_leds_idle_default_callback);
             break;
         case COMMAND_PROCESSOR_CONTEXT_DOZING_ANIMATION:
-            if (LCM_SUCCESS != status_leds_set_color(&colors.orange, 0U, STATUS_LEDS_COUNT - 1U))
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT,
-                                 status_leds_idle_dozing_callback);
+            status_leds_flash(&colors.orange, status_leds_idle_dozing_callback);
             break;
         case COMMAND_PROCESSOR_CONTEXT_SHUTDOWN_ANIMATION:
-            if (LCM_SUCCESS != status_leds_set_color(&colors.red, 0U, STATUS_LEDS_COUNT - 1U))
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT,
-                                 status_leds_shutdown_callback);
+            status_leds_flash(&colors.red, status_leds_shutdown_callback);
             break;
         case COMMAND_PROCESSOR_CONTEXT_RIDING_ANIMATION:
-            if (LCM_SUCCESS != status_leds_set_color(&colors.white, 0U, STATUS_LEDS_COUNT - 1U))
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            fade_animation_setup(status_leds_buffer, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT,
-                                 status_leds_riding_callback);
+            status_leds_flash(&colors.white, status_leds_riding_callback);
             break;
         case COMMAND_PROCESSOR_CONTEXT_PERSONAL_COLOR:
-            if (LCM_SUCCESS !=
-                status_leds_set_color(&colors.red, 0U, 2U)) // Set first 3 LEDs to red
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            if (LCM_SUCCESS !=
-                status_leds_set_color(&colors.green, 3U, 6U)) // Set middle 4 LEDs to green
-            {
-                fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
-            }
-            if (LCM_SUCCESS !=
-                status_leds_set_color(&colors.blue, 7U, 9U)) // Set last 3 LEDs to blue
+            // First 3 LEDs red, middle 4 green, last 3 blue
+            if ((LCM_SUCCESS != status_leds_set_color(&colors.red, 0U, 2U)) ||
+                (LCM_SUCCESS != status_leds_set_color(&colors.green, 3U, 6U)) ||
+                (LCM_SUCCESS != status_leds_set_color(&colors.blue, 7U, 9U)))
             {
                 fault(EMERGENCY_FAULT_UNEXPECTED_ERROR);
             }

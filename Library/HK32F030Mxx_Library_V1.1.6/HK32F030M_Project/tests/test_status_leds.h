@@ -94,6 +94,8 @@ int test_status_leds_setup(void **state)
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_TOGGLE_BEEPER);
     expect_any(subscribe_event, callback);
+    expect_value(subscribe_event, event, EVENT_COMMAND_TOGGLE_DUTY_ALERTS);
+    expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_CONTEXT_CHANGED);
     expect_any(subscribe_event, callback);
     expect_value(subscribe_event, event, EVENT_COMMAND_SETTINGS_CHANGED);
@@ -633,26 +635,118 @@ static void test_display_footpad_variants(void **state)
 }
 
 /**
- * @brief EVENT_HANDLER(status_leds, command)'s TOGGLE_BEEPER branch.
+ * @brief Sends a toggle command for a setting that has already been changed,
+ * and checks that every LED flashes the expected color before fading out.
+ *
+ * @param event The toggle command to send.
+ * @param expected_g The expected green level of every LED.
+ * @param expected_r The expected red level of every LED.
  */
-static void test_command_toggle_beeper(void **state)
+static void check_toggle_flash(event_type_t event, uint8_t expected_g, uint8_t expected_r)
 {
-    // enable_beep currently true (test_status_leds_setup default is
-    // unset/false actually - force it explicitly for clarity).
-    settings->enable_beep = true;
-
     event_data_t data = {0};
-    // !enable_beep is false -> no-op branch.
-    event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_BEEPER, &data);
+    status_leds_color_t expected[STATUS_LEDS_COUNT] = {0};
 
-    // !enable_beep is true -> fade to red then disable.
-    settings->enable_beep = false;
+    for (uint8_t i = 0; i < STATUS_LEDS_COUNT; i++)
+    {
+        expected[i].g = expected_g;
+        expected[i].r = expected_r;
+    }
+
     expect_any(fade_animation_setup, buffer);
     expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
     expect_not_value(fade_animation_setup, callback, NULL);
     expect_function_call(fade_animation_setup);
     will_return(fade_animation_setup, 1U);
-    event_queue_call_mocked_callback(EVENT_COMMAND_TOGGLE_BEEPER, &data);
+    event_queue_call_mocked_callback(event, &data);
+    validate_status_leds_buffer(expected, mock_status_leds_hw_get_buffer());
+}
+
+/**
+ * @brief EVENT_HANDLER(status_leds, command)'s TOGGLE_BEEPER branch: the flash
+ * is green when the beeper turns on and red when it turns off. A color mix-up
+ * here would tell the rider the opposite of what actually happened.
+ */
+static void test_command_toggle_beeper_flashes_new_state(void **state)
+{
+    settings->enable_beep = true;
+    check_toggle_flash(EVENT_COMMAND_TOGGLE_BEEPER, 0xff, 0x00);
+
+    settings->enable_beep = false;
+    check_toggle_flash(EVENT_COMMAND_TOGGLE_BEEPER, 0x00, 0xff);
+}
+
+/**
+ * @brief EVENT_HANDLER(status_leds, command)'s TOGGLE_DUTY_ALERTS branch: the
+ * flash is green when alerts turn on and red when they turn off.
+ */
+static void test_command_toggle_duty_alerts_flashes_new_state(void **state)
+{
+    settings->enable_duty_alerts = true;
+    check_toggle_flash(EVENT_COMMAND_TOGGLE_DUTY_ALERTS, 0xff, 0x00);
+
+    settings->enable_duty_alerts = false;
+    check_toggle_flash(EVENT_COMMAND_TOGGLE_DUTY_ALERTS, 0x00, 0xff);
+}
+
+/**
+ * @brief With alerts on, a duty cycle above the gauge threshold shows the
+ * gauge. No submode or battery read is queued, so reaching the normal ride
+ * display instead would fail the test.
+ */
+static void test_riding_duty_alerts_on_shows_gauge(void **state)
+{
+    event_data_t data = {0};
+
+    settings->enable_duty_alerts = true;
+    will_return(board_mode_get, BOARD_MODE_RIDING); // state_changed()
+    will_return(board_mode_get, BOARD_MODE_RIDING); // update_display()
+    will_return(vesc_serial_get_duty_cycle, 950);   // 95.0%
+    expect_function_call(stop_animation);
+    expect_scan_animation();
+    event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &data);
+}
+
+/**
+ * @brief With alerts off, the same duty cycles show the normal ride display
+ * rather than the gauge.
+ *
+ * Covers RIDING_DANGER too: this submode persists after alerts are disabled
+ * mid-danger until board_mode's next update, and must not hit update_display()'s
+ * default branch. That branch faults, which would be unacceptable mid-ride. The
+ * mock's fault() has no expectation queued here, so a fault fails this test.
+ */
+static void test_riding_duty_alerts_off_shows_ride_display(void **state)
+{
+    event_data_t data = {0};
+
+    settings->enable_duty_alerts = false;
+
+    // Danger: the current animation isn't the ride animation, so it starts
+    // the ride display (fade to black, since no ride animation is configured)
+    will_return(board_mode_get, BOARD_MODE_RIDING);
+    will_return(board_mode_get, BOARD_MODE_RIDING);
+    will_return(vesc_serial_get_duty_cycle, 950); // 95.0%
+    will_return(board_submode_get, BOARD_SUBMODE_RIDING_DANGER);
+    will_return(vesc_serial_get_battery_level, 900); // 90.0%
+    expect_function_call(get_animation_id);
+    will_return(get_animation_id, 0xFFFFU);
+    expect_any(fade_animation_setup, buffer);
+    expect_value(fade_animation_setup, period, STATUS_LEDS_FADE_TO_BLACK_TIMEOUT);
+    expect_not_value(fade_animation_setup, callback, NULL);
+    expect_function_call(fade_animation_setup);
+    will_return(fade_animation_setup, 7U);
+    event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &data);
+
+    // Gauge band: the ride display is already running, so nothing restarts
+    will_return(board_mode_get, BOARD_MODE_RIDING);
+    will_return(board_mode_get, BOARD_MODE_RIDING);
+    will_return(vesc_serial_get_duty_cycle, 800); // 80.0%
+    will_return(board_submode_get, BOARD_SUBMODE_RIDING_NORMAL);
+    will_return(vesc_serial_get_battery_level, 900); // 90.0%
+    expect_function_call(get_animation_id);
+    will_return(get_animation_id, 7U);
+    event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &data);
 }
 
 /**
@@ -703,7 +797,10 @@ const struct CMUnitTest status_leds_tests[] = {
     cmocka_unit_test_setup(test_display_battery_bands, test_status_leds_setup),
     cmocka_unit_test_setup(test_display_duty_cycle_bands, test_status_leds_setup),
     cmocka_unit_test_setup(test_display_footpad_variants, test_status_leds_setup),
-    cmocka_unit_test_setup(test_command_toggle_beeper, test_status_leds_setup),
+    cmocka_unit_test_setup(test_command_toggle_beeper_flashes_new_state, test_status_leds_setup),
+    cmocka_unit_test_setup(test_command_toggle_duty_alerts_flashes_new_state, test_status_leds_setup),
+    cmocka_unit_test_setup(test_riding_duty_alerts_on_shows_gauge, test_status_leds_setup),
+    cmocka_unit_test_setup(test_riding_duty_alerts_off_shows_ride_display, test_status_leds_setup),
     cmocka_unit_test_setup(test_status_leds_exit_config_with_leds_disabled, test_status_leds_setup),
 };
 

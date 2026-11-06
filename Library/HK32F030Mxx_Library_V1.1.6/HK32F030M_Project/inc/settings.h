@@ -35,6 +35,7 @@ typedef struct
     bool_t enable_beep;                    // Flag to enable or disable beep sound.
     bool_t enable_status_leds;             // Flag to enable or disable status LEDs.
     bool_t enable_headlights;              // Flag to enable or disable headlights.
+    bool_t enable_duty_alerts;             // Flag to enable or disable the duty cycle gauge and alarm.
     animation_option_t boot_animation;     // Animation option for boot sequence.
     animation_option_t idle_animation;     // Animation option for idle state.
     animation_option_t dozing_animation;   // Animation option for dozing state.

@@ -72,6 +72,7 @@ add_executable(test_board_mode
     mocks/mock_timer.c
     mocks/mock_footpads.c
     mocks/mock_vesc_serial.c
+    mocks/mock_settings.c
     )
 
 target_link_libraries(test_board_mode PRIVATE board_mode cmocka)

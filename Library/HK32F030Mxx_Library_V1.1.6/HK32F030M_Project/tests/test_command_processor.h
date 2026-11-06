@@ -524,6 +524,37 @@ static void test_default_handler_click_two_toggles_beeper(void **state)
     assert_int_equal(!before_beep, settings_get()->enable_beep);
 }
 
+static void test_default_handler_click_four_toggles_duty_alerts(void **state)
+{
+    (void)state;
+
+    event_data_t data = click_count_event(4);
+    bool_t before_alerts = settings_get()->enable_duty_alerts;
+
+    expect_push(EVENT_COMMAND_TOGGLE_DUTY_ALERTS);
+    expect_push(EVENT_COMMAND_ACK);
+    command_processor_default_handler(EVENT_BUTTON_CLICK, &data);
+    assert_int_equal(!before_alerts, settings_get()->enable_duty_alerts);
+
+    // A second gesture toggles it back
+    expect_push(EVENT_COMMAND_TOGGLE_DUTY_ALERTS);
+    expect_push(EVENT_COMMAND_ACK);
+    command_processor_default_handler(EVENT_BUTTON_CLICK, &data);
+    assert_int_equal(before_alerts, settings_get()->enable_duty_alerts);
+}
+
+static void test_default_handler_click_five_nacks(void **state)
+{
+    (void)state;
+
+    event_data_t data = click_count_event(5);
+    bool_t before_alerts = settings_get()->enable_duty_alerts;
+
+    expect_push(EVENT_COMMAND_NACK);
+    command_processor_default_handler(EVENT_BUTTON_CLICK, &data);
+    assert_int_equal(before_alerts, settings_get()->enable_duty_alerts);
+}
+
 static void test_default_handler_click_default_nacks(void **state)
 {
     (void)state;
@@ -787,6 +818,8 @@ static const struct CMUnitTest command_processor_tests[] = {
     cmocka_unit_test_setup(test_context_handler_unhandled_event_is_noop, cp_setup),
     cmocka_unit_test_setup(test_default_handler_click_one_toggles_lights, cp_setup),
     cmocka_unit_test_setup(test_default_handler_click_two_toggles_beeper, cp_setup),
+    cmocka_unit_test_setup(test_default_handler_click_four_toggles_duty_alerts, cp_setup),
+    cmocka_unit_test_setup(test_default_handler_click_five_nacks, cp_setup),
     cmocka_unit_test_setup(test_default_handler_click_default_nacks, cp_setup),
     cmocka_unit_test_setup(test_default_handler_hold_one_shuts_down, cp_setup),
     cmocka_unit_test_setup(test_default_handler_hold_two_requests_config, cp_setup),

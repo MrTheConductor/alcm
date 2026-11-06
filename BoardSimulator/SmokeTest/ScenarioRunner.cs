@@ -141,6 +141,9 @@ class ScenarioRunner
         if (step.TryGetProperty("rpm", out var rpm))
             _engine.SetRpm(rpm.GetInt32());
 
+        if (step.TryGetProperty("duty_cycle", out var duty))
+            _engine.SetDutyCycle(duty.GetSingle());
+
         if (step.TryGetProperty("battery_v", out var bv))
             _engine.SetBatteryVoltage(bv.GetSingle());
 

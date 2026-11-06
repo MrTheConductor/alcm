@@ -29,6 +29,7 @@
 #include "mock_event_queue.h"
 #include "mock_timer.h"
 #include "config.h"
+#include "settings.h"
 
 /**
  * @brief Initializes the board mode for testing
@@ -45,6 +46,7 @@ int board_mode_setup(void **state)
     // Reset event queue and timer
     event_queue_init();
     timer_init();
+    settings_init();
 
     // Board mode subscribes to a lot of events
     expect_value(subscribe_event, event, EVENT_BUTTON_UP);
@@ -459,6 +461,57 @@ void test_board_mode_duty_cycle(void **state)
     event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
 }
 
+/**
+ * @brief With duty alerts off the danger submode is never entered, so the
+ * buzzer's alarm (driven by that submode) can't sound. Toggling takes effect on
+ * the next telemetry update, in either direction.
+ */
+void test_board_mode_duty_alerts_gate_danger(void **state)
+{
+    (void)state;
+    event_data_t duty_cycle_event_data = {0};
+    board_mode_event_data_t expected_state = {0};
+
+    board_mode_to_idle();
+    step_on_board();
+
+    // Off: 95% duty leaves the submode alone
+    settings_get()->enable_duty_alerts = false;
+    will_return(vesc_serial_get_duty_cycle, 950); // 95.0%
+    will_return(vesc_serial_get_rpm, 8);
+    event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_RIDING_STOPPED);
+
+    // Turned on while still at 95%: danger is entered on the next update
+    settings_get()->enable_duty_alerts = true;
+    will_return(vesc_serial_get_duty_cycle, 950);
+    will_return(vesc_serial_get_rpm, 8);
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, false);
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    expected_state.mode = BOARD_MODE_RIDING;
+    expected_state.submode = BOARD_SUBMODE_RIDING_DANGER;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                 (uintmax_t)&expected_state);
+    event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_RIDING_DANGER);
+
+    // Turned off mid-danger: danger is left on the next update, which is what
+    // silences an alarm that's already sounding
+    settings_get()->enable_duty_alerts = false;
+    will_return(vesc_serial_get_duty_cycle, 950);
+    will_return(vesc_serial_get_rpm, 8);
+    expect_any(is_timer_active, timer_id);
+    will_return(is_timer_active, false);
+    expect_value(event_queue_push, event, EVENT_BOARD_MODE_CHANGED);
+    expected_state.mode = BOARD_MODE_RIDING;
+    expected_state.submode = BOARD_SUBMODE_RIDING_STOPPED;
+    expect_check(event_queue_push, data, validate_board_mode_event_data,
+                 (uintmax_t)&expected_state);
+    event_queue_call_mocked_callback(EVENT_DUTY_CYCLE_CHANGED, &duty_cycle_event_data);
+    assert_int_equal(board_submode_get(), BOARD_SUBMODE_RIDING_STOPPED);
+}
+
 void test_board_mode_emergency_fault(void **state)
 {
     (void)state;
@@ -719,6 +772,7 @@ const struct CMUnitTest board_mode_tests[] = {
     cmocka_unit_test_setup(test_board_mode_footpads, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_emergency_fault, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_duty_cycle, board_mode_setup),
+    cmocka_unit_test_setup(test_board_mode_duty_alerts_gate_danger, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_rpm, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_button_down_in_fault_kills_immediately, board_mode_setup),
     cmocka_unit_test_setup(test_board_mode_imu_roll_dozing_and_recovery, board_mode_setup),

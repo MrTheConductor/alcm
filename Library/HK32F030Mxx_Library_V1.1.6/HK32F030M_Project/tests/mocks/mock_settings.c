@@ -48,6 +48,7 @@ lcm_status_t settings_init(void) {
     mock_settings.enable_beep = true;
     mock_settings.enable_status_leds = true;
     mock_settings.enable_headlights = true;
+    mock_settings.enable_duty_alerts = true;
     mock_settings.boot_animation = ANIMATION_OPTION_NONE;
     mock_settings.idle_animation = ANIMATION_OPTION_NONE;
     mock_settings.dozing_animation = ANIMATION_OPTION_NONE;
