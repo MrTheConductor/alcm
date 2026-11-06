@@ -1,16 +1,16 @@
 {
-  "_description": "LG INR21700-P42A. Transcribed from floatwheel's own CheckPowerLevel() battVoltages_mv table (floatwheel/LCM/Code/App/task.c, #ifdef P42A). Seen paired with BOTH BATTERY_STRING=18 (GTV board) and BATTERY_STRING=20 (ADV board) in floatwheel's own build defines - this chemistry alone doesn't tell you the series count, use --cell-count to match your actual pack.",
+  "_description": "Molicel INR21700-P42A. Curve digitized from lygte-info.dk's 0.2A (near-rest) discharge curve, 10% steps of measured capacity with 3.0V/cell as empty; values are approx +/-10mV. The 100% point is the cell's initial voltage under that light load, not the 4.2V charge voltage - packs above it just read 100%. Replaces floatwheel's task.c table, which read 30-80mV low between 80% and 40%. floatwheel pairs this cell with BOTH BATTERY_STRING=18 (GTV board) and BATTERY_STRING=20 (ADV board) - this chemistry alone doesn't tell you the series count, use --cell-count to match your actual pack.",
   "breakpoints": [
-    {"cell_mv": 4200, "percent": 100.0},
-    {"cell_mv": 4065, "percent": 90.0},
-    {"cell_mv": 3938, "percent": 80.0},
-    {"cell_mv": 3854, "percent": 70.0},
-    {"cell_mv": 3776, "percent": 60.0},
-    {"cell_mv": 3695, "percent": 50.0},
-    {"cell_mv": 3618, "percent": 40.0},
-    {"cell_mv": 3543, "percent": 30.0},
-    {"cell_mv": 3460, "percent": 20.0},
-    {"cell_mv": 3342, "percent": 10.0},
-    {"cell_mv": 3000, "percent": 0.0}
+    {"cell_mv": 4148, "percent": 100.0},
+    {"cell_mv": 4066, "percent": 90.0},
+    {"cell_mv": 4019, "percent": 80.0},
+    {"cell_mv": 3914, "percent": 70.0},
+    {"cell_mv": 3825, "percent": 60.0},
+    {"cell_mv": 3733, "percent": 50.0},
+    {"cell_mv": 3652, "percent": 40.0},
+    {"cell_mv": 3575, "percent": 30.0},
+    {"cell_mv": 3468, "percent": 20.0},
+    {"cell_mv": 3358, "percent": 10.0},
+    {"cell_mv": 3007, "percent": 0.0}
   ]
 }

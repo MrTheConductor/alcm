@@ -14,16 +14,36 @@ install, works on Windows/Mac/Linux. `flash` needs `pyocd` (see below).
 
 ## Known cell types
 
-`examples/` ships ready-to-use curves for the cell chemistries floatwheel's
-own firmware already has field-proven tables for (transcribed from
-`CheckPowerLevel()` in `floatwheel/LCM/Code/App/task.c`):
+`examples/` ships ready-to-use per-cell curves, all 11 points (100% to 0%
+in 10% steps), from three kinds of source:
 
-| File | Cell |
-| --- | --- |
-| `examples/s50s.json` | Samsung INR21700-50S |
-| `examples/p42a.json` | LG INR21700-P42A |
-| `examples/dg40.json` | DG40 21700 |
-| `examples/vtc6.json` | Sony/Murata US18650VTC6 |
+| File | Cell | Source |
+| --- | --- | --- |
+| `examples/vtc6.json` | Sony/Murata US18650VTC6 | lygte-info.dk test |
+| `examples/p42a.json` | Molicel INR21700-P42A | lygte-info.dk test |
+| `examples/p28a.json` | Molicel INR18650-P28A | lygte-info.dk test |
+| `examples/s50s.json` | Samsung INR21700-50S | floatwheel |
+| `examples/dg40.json` | DG40 21700 | floatwheel |
+| `examples/rs50.json` | Reliance RS50 21700 | Dado |
+| `examples/p45b.json` | Molicel INR21700-P45B | Dado |
+| `examples/p50b.json` | Molicel INR21700-P50B | Dado |
+
+- **lygte-info.dk**: digitized from [lygte-info.dk](https://lygte-info.dk/info/batteryIndex.html)'s
+  0.2A discharge curve (close to resting voltage), with 3.0V/cell as
+  empty. Accurate to roughly +/-10mV. Best paired with `--r-int-milliohms`
+  (below), since the curve itself has almost no load sag built in.
+- **floatwheel**: transcribed from `CheckPowerLevel()` in
+  `floatwheel/LCM/Code/App/task.c`. Its VTC6 table matched lygte's data
+  within ~25mV, but its P42A table read 30-80mV low in mid-charge, which is
+  why those two now use lygte data instead.
+- **Dado**: community-provided; origin of the data unknown. Dado's P28A
+  matched lygte's within ~30mV, but his P42A looked like a loaded curve
+  (70-110mV low), so treat these as unverified.
+
+Except for the floatwheel curves, the 100% point is a resting or
+light-load full-charge voltage (4.13-4.17V/cell) rather than the 4.2V
+charge voltage, so a freshly charged pack reads 100% until it settles
+below that point. RS50 is the exception: its top point is 4.2V.
 
 These files deliberately **don't** include a cell count - floatwheel itself
 pairs the same chemistry with different series counts on different boards
